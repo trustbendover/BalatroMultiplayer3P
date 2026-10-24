@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LuaJIT
+        run: sudo apt-get update && sudo apt-get install -y luajit
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Check tag matches mod version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          ver=$(python3 -c "import json;print(json.load(open('mod/Multiplayer.json'))['version'].split('~')[0])")
+          test "v$ver" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != mod version v$ver"; exit 1; }
+
+      - name: Lua syntax + tests
+        working-directory: mod
+        run: |
+          find . -name '*.lua' -not -path './tests/*' -print0 | xargs -0 -n1 luajit -bl > /dev/null
+          luajit tests/test_three_player.lua
+          luajit tests/test_steam_p2p.lua
+          luajit tests/test_updater.lua
+
+      - name: Server tests
+        working-directory: server
+        run: |
+          npm ci
+          npm test
+          npm run test:lua
+
+      - name: Build release zips
+        id: build
+        run: python3 tools/build_release.py --out dist-release
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          awk -v v="## ${tag#v}~3P" 'index($0,v)==1{f=1;next} /^## /{if(f)exit} f' mod/CHANGELOG.md > notes.md
+          printf '\n**Install:** download the Installer zip, unzip it, run `Install.bat`. Already on 0.6.6+? Use the in-game "Update available" button or `Update.bat`.\n\nSupport: https://ko-fi.com/trustbendover\n' >> notes.md
+          gh release create "$tag" dist-release/* --title "${tag}~3P" --notes-file notes.md --latest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-zips
+          path: dist-release/

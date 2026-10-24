@@ -1,0 +1,65 @@
+-- luajit tests/test_updater.lua (run from mod root)
+MP = { ENV = {} }
+local logs = {}
+function sendInfoMessage(m) logs[#logs + 1] = m end
+SMODS = { Mods = { Multiplayer = { version = "0.6.6~3P", path = "C:/Users/x/AppData/Roaming/Balatro/Mods/BalatroMultiplayer3P/" } } }
+local now = 0
+love = { timer = { getTime = function() return now end }, system = { getOS = function() return "Windows" end, openURL = function(u) love.opened = u end } }
+local events = {}
+G = { E_MANAGER = { add_event = function(_, e) events[#events + 1] = e end }, FUNCS = {} }
+function Event(t) return t end
+-- fake SMODS.https
+local pending = {}
+package.preload["SMODS.https"] = function()
+	return { asyncRequest = function(url, opts, cb) pending[#pending + 1] = { url = url, cb = cb, opts = opts } end }
+end
+local U = dofile("lib/updater.lua")
+local function ok(c, m) assert(c, m); print("ok: " .. m) end
+
+ok(U.is_newer("v0.6.7", "0.6.6~3P") and not U.is_newer("v0.6.6", "0.6.6~3P") and not U.is_newer("0.6.5", "0.6.6~3P"), "version compare")
+ok(U.is_newer("v0.7", "0.6.9~3P") and U.is_newer("0.6.10", "0.6.9") and not U.is_newer("garbage", "0.6.6"), "version compare edge cases")
+ok(U.parse_release('{"tag_name":"v0.6.7","draft":false,"prerelease":false,"assets":[{"name":"BalatroMultiplayer3P-v0.6.7-Installer.zip"}]}') == "v0.6.7", "parse release")
+ok(U.parse_release('{"tag_name":"v0.6.7","assets":[]}') == nil, "release without installer ignored")
+ok(U.parse_release('{"message":"Not Found"}') == nil and U.parse_release(nil) == nil, "404 / nil body")
+ok(U.parse_version_json('{ "version": "0.6.7~3P", "tag": "v0.6.7" }') == "v0.6.7", "parse version.json")
+ok(U.updater_path() == "C:\\Users\\x\\AppData\\Roaming\\Balatro\\Mods\\BalatroMultiplayer3P\\updater\\update.ps1", "updater path")
+
+-- newer release found -> available
+U.check()
+ok(U.state == "checking" and pending[1].url == U.API_URL, "check uses GitHub API")
+U.check(); ok(#pending == 1, "only one check per session")
+pending[1].cb(200, '{"tag_name":"v0.6.7","assets":[{"name":"BalatroMultiplayer3P-v0.6.7-Installer.zip"}]}')
+ok(U.state == "available" and U.latest == "0.6.7" and U.button_label() == "Update available: v0.6.7", "update available")
+
+-- API fails -> raw version.json fallback; up to date
+U.state = "idle"; pending = {}
+U.check(); pending[1].cb(403, "rate limited")
+ok(pending[2] and pending[2].url == U.RAW_URL, "falls back to version.json")
+pending[2].cb(200, '{"version":"0.6.6~3P","tag":"v0.6.6"}')
+ok(U.state == "none" and U.button_label() == nil, "up to date -> no button")
+
+-- offline: both fail -> silent
+U.state = "idle"; pending = {}
+U.check(); pending[1].cb(nil, nil); pending[2].cb(0, nil)
+ok(U.state == "offline", "offline is silent")
+
+-- timeout: watchdog fires, late answer ignored
+U.state = "idle"; pending = {}; events = {}
+U.check()
+for _, e in ipairs(events) do e.func() end
+ok(pending[2] and pending[2].url == U.RAW_URL, "timeout falls through to version.json")
+now = 100; pending[1].cb(200, '{"tag_name":"v9.9.9","assets":[{"name":"x-Installer.zip"}]}')
+ok(U.state ~= "available", "late answer after timeout ignored")
+
+-- request throwing -> no crash
+U.state = "idle"
+package.loaded["SMODS.https"] = { asyncRequest = function() error("boom") end }
+U.check(); ok(U.state == "offline", "throwing backend handled")
+-- no backend
+U.state = "idle"; package.loaded["SMODS.https"] = nil; package.preload["SMODS.https"] = nil
+U.check(); ok(U.state == "no_https" and U.button_label() == "Check for 3P updates", "no https -> PowerShell updater button")
+-- opt-out
+U.state = "idle"; MP.ENV.update_check = "false"; U.check(); ok(U.state == "none", ".env update_check=false")
+-- start updater when script missing -> opens releases page, never crashes
+U.start_updater(); ok(U.state == "started" and love.opened == U.RELEASES_URL, "missing updater -> releases page")
+print("PASS test_updater")

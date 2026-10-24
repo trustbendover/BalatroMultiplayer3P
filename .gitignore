@@ -1,0 +1,22 @@
+# dependencies / builds
+node_modules/
+dist/
+dist-release/
+.vendor/
+out/
+# local settings & secrets
+.env
+!.env.example
+# logs, runtime data
+*.log
+logs/
+server/data/
+*.db
+*.db-shm
+*.db-wal
+# editors / OS
+.vscode/
+.idea/
+.vs/
+.DS_Store
+Thumbs.db

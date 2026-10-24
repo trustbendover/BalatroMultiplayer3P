@@ -1,0 +1,638 @@
+-- Balatro Multiplayer 3P: in-process lobby/game server (Lua port of the 3P
+-- TypeScript server: server/src/Lobby.ts + actionHandlers.ts).
+-- Used by Steam P2P mode, where the lobby host runs this inside their game.
+-- Pure Lua (no LOVE / Balatro dependencies) so it can be unit-tested.
+-- GPL-3.0, based on Balatro-Multiplayer/BalatroMultiplayerAPI-Server.
+
+local Core = {}
+Core.MAX_PLAYERS = 3
+Core.SERVER_VERSION = "0.6.6-MULTIPLAYER3P"
+Core.STARTING_LIVES = { attrition = 4, showdown = 2, survival = 1 }
+Core.EMPTY_LOBBY_TTL = 10 * 60
+
+---------------------------------------------------------------- scores
+-- Score strings like "1234", "1.5e20", "ee1.2e5" (same format as InsaneInt)
+local function parse_score(str)
+	str = tostring(str or "0")
+	local ec = 0
+	while str:sub(1, 1) == "e" do
+		ec = ec + 1
+		str = str:sub(2)
+	end
+	local hash = str:find("#", 1, true)
+	if hash then
+		ec = ec + (tonumber(str:sub(hash + 1)) or 0)
+		str = str:sub(1, hash - 1)
+	end
+	local c, e = str:match("^([^e]*)e(.*)$")
+	if c then return { ec = ec, c = tonumber(c) or 0, e = tonumber(e) or 0, raw = str } end
+	return { ec = ec, c = tonumber(str) or 0, e = 0 }
+end
+local function s_eq(a, b) return a.ec == b.ec and a.e == b.e and a.c == b.c end
+local function s_gt(a, b)
+	if a.ec ~= b.ec then return a.ec > b.ec end
+	if a.e ~= b.e then return a.e > b.e end
+	return a.c > b.c
+end
+local function s_lt(a, b) return not s_eq(a, b) and not s_gt(a, b) end
+local ZERO = function() return { ec = 0, c = 0, e = 0, str = "0" } end
+Core.parse_score, Core.score_gt, Core.score_eq = parse_score, s_gt, s_eq
+
+---------------------------------------------------------------- helpers
+local function filter(t, f)
+	local r = {}
+	for _, v in ipairs(t) do if f(v) then r[#r + 1] = v end end
+	return r
+end
+local function find(t, f)
+	for i, v in ipairs(t) do if f(v) then return v, i end end
+end
+local function every(t, f)
+	for _, v in ipairs(t) do if not f(v) then return false end end
+	return true
+end
+local function remove_value(t, x)
+	for i = #t, 1, -1 do if t[i] == x then table.remove(t, i) end end
+end
+local function copy(t, extra)
+	local r = {}
+	for k, v in pairs(t or {}) do r[k] = v end
+	for k, v in pairs(extra or {}) do r[k] = v end
+	return r
+end
+local function rand_str(chars, n)
+	local s = {}
+	for i = 1, n do
+		local k = math.random(1, #chars)
+		s[i] = chars:sub(k, k)
+	end
+	return table.concat(s)
+end
+local function base_name(u)
+	local s = (tostring(u or ""):match("^([^~]*)") or ""):lower()
+	s = s:gsub("^%s+", ""):gsub("%s+$", "")
+	return s
+end
+Core.base_name = base_name
+
+---------------------------------------------------------------- server
+local Server = {}
+Server.__index = Server
+
+function Core.new(opts)
+	opts = opts or {}
+	local self = setmetatable({}, Server)
+	self.lobbies = {}
+	self.now = opts.now or os.time
+	self.log = opts.log or function() end
+	self.next_id = 0
+	return self
+end
+
+--- A new connection. send(tbl) delivers an action table to that client;
+--- close() drops the transport (optional).
+function Server:connect(send, close)
+	self.next_id = self.next_id + 1
+	local c = {
+		id = string.format("p%d-%s", self.next_id, rand_str("abcdef0123456789", 6)),
+		send = send,
+		close = close or function() end,
+		reconnectToken = rand_str("abcdef0123456789", 32),
+		username = "Guest", modHash = "NULL", lobby = nil,
+		isReadyLobby = false, isReady = false, firstReady = false,
+		lives = 5, score = ZERO(), handsLeft = 4, playedThisBlind = false,
+		ante = 1, skips = 0, furthestBlind = 0,
+		roundLivesBlocker = false, timerLivesBlocker = false,
+		eliminated = false, pvpDone = false, pvpTimerFailed = false,
+		inPvp = false, blindSeq = 0, sitOut = false,
+		location = "loc_selecting", isCached = true,
+	}
+	c.send({ action = "connected" })
+	c.send({ action = "version" })
+	return c
+end
+
+local function sendA(c, t) if c and c.send then c.send(t) end end
+
+---------------------------------------------------------------- client-ish
+function Server:reset_blocker(c) c.roundLivesBlocker = false; c.timerLivesBlocker = false end
+
+function Server:set_location(c, loc)
+	c.location = loc
+	if c.lobby then
+		for _, p in ipairs(c.lobby.players) do
+			if p ~= c then sendA(p, { action = "enemyLocation", location = loc, playerId = c.id }) end
+		end
+	end
+end
+
+function Server:lose_life(c, cause)
+	cause = cause or "round"
+	if cause == "timer" then
+		if c.timerLivesBlocker then return end
+		c.timerLivesBlocker = true
+	else
+		if c.roundLivesBlocker then return end
+		c.roundLivesBlocker = true
+	end
+	c.lives = c.lives - 1
+	sendA(c, { action = "playerInfo", lives = c.lives })
+	if c.lobby then
+		local info = self:enemy_info(c, true)
+		for _, p in ipairs(c.lobby.players) do if p ~= c then sendA(p, info) end end
+	end
+end
+
+---------------------------------------------------------------- lobby
+function Server:new_lobby(host, gameMode)
+	local code
+	repeat code = rand_str("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 5) until not self.lobbies[code]
+	local L = {
+		code = code, players = { host }, gameMode = gameMode or "attrition", options = {},
+		firstReadyAt = nil, slots = {}, isInGame = false, seed = nil,
+		blindActive = false, blindSeq = 0, emptySince = nil,
+	}
+	self.lobbies[code] = L
+	host.lobby = L
+	host.isReadyLobby = false
+	sendA(host, { action = "joinedLobby", code = code, type = L.gameMode, reconnectToken = host.reconnectToken })
+	return L
+end
+
+function Server:alive(L) return filter(L.players, function(p) return not p.eliminated end) end
+function Server:away_alive(L) return filter(L.slots, function(s) return not s.old.eliminated and s.old.lives > 0 end) end
+function Server:participants(L) return filter(self:alive(L), function(p) return not p.sitOut end) end
+
+function Server:broadcast(L, t) for _, p in ipairs(L.players) do sendA(p, t) end end
+function Server:to_opponents(c, t)
+	if not c.lobby then return end
+	for _, p in ipairs(c.lobby.players) do if p ~= c then sendA(p, t) end end
+end
+
+function Server:enemy_info(p, with_score)
+	return {
+		action = "enemyInfo", playerId = p.id, username = p.username, handsLeft = p.handsLeft,
+		score = with_score and (p.score.str or "0") or nil, noScore = (not with_score) or nil,
+		skips = p.skips, lives = p.lives, eliminated = p.eliminated,
+	}
+end
+
+function Server:lobby_info(L)
+	local host = L.players[1]
+	if not host then return end
+	local players = {}
+	for i, p in ipairs(L.players) do
+		players[i] = { id = p.id, username = p.username, hash = p.modHash, cached = p.isCached, ready = p.isReadyLobby,
+			isHost = i == 1, lives = p.lives, eliminated = p.eliminated }
+	end
+	local away = {}
+	for i, s in ipairs(L.slots) do away[i] = { id = s.old.id, username = s.old.username, lives = s.old.lives } end
+	for _, p in ipairs(L.players) do
+		local a = { action = "lobbyInfo", host = host.username, hostHash = host.modHash, isHost = p == host,
+			hostCached = host.isCached, players = players, you = p.id, maxPlayers = Core.MAX_PLAYERS, away = away, inGame = L.isInGame }
+		local g = L.players[2]
+		if g then
+			a.guest, a.guestHash, a.guestCached = g.username, g.modHash, g.isCached
+			a.guestReady = every(L.players, function(o) return o == host or o.isReadyLobby end)
+		end
+		sendA(p, a)
+	end
+	self:broadcast(L, { action = "handyMPExtensionLobbyEnabled", enabled = false })
+end
+
+function Server:reset_players(L)
+	L.isInGame = false
+	for _, p in ipairs(L.players) do
+		p.isReady, p.firstReady = false, false
+		self:reset_blocker(p)
+		self:set_location(p, "Blind Select")
+		p.furthestBlind, p.skips, p.score, p.handsLeft = 0, 0, ZERO(), 4
+		p.pvpDone, p.pvpTimerFailed, p.playedThisBlind, p.inPvp, p.sitOut, p.ante = false, false, false, false, false, 1
+	end
+	L.firstReadyAt, L.blindActive, L.slots = nil, false, {}
+end
+
+function Server:destroy(L)
+	L.slots = {}
+	self.lobbies[L.code] = nil
+end
+
+function Server:check_game_over(L)
+	if not L.isInGame then return true end
+	for _, p in ipairs(L.players) do
+		if not p.eliminated and p.lives <= 0 then
+			p.eliminated = true
+			sendA(p, { action = "loseGame" })
+			for _, o in ipairs(L.players) do
+				if o ~= p then sendA(o, { action = "playerEliminated", playerId = p.id, username = p.username }) end
+			end
+		end
+	end
+	local alive = self:alive(L)
+	if #alive + #self:away_alive(L) <= 1 then
+		if alive[1] then sendA(alive[1], { action = "winGame" }) end
+		L.isInGame, L.blindActive, L.slots = false, false, {}
+		return true
+	end
+	return false
+end
+
+function Server:try_start_blind(L)
+	if not L.isInGame or L.blindActive then return false end
+	local alive = self:alive(L)
+	if #alive == 0 or not every(alive, function(p) return p.isReady end) then return false end
+	L.blindSeq = L.blindSeq + 1
+	for _, p in ipairs(alive) do
+		p.sitOut, p.inPvp, p.blindSeq = false, true, L.blindSeq
+		p.isReady, p.score, p.handsLeft, p.playedThisBlind, p.pvpDone = false, ZERO(), 4, false, false
+		self:reset_blocker(p)
+	end
+	local first = find(alive, function(p) return p.firstReady end)
+	L.firstReadyAt, L.blindActive = nil, true
+	self:broadcast(L, { action = "startBlind", firstPlayer = first and (first == L.players[1] and "host" or "guest") or nil,
+		firstPlayerId = first and first.id or nil })
+	return true
+end
+
+function Server:try_resolve_pvp(L)
+	if not L.isInGame or not L.blindActive then return end
+	local alive = self:participants(L)
+	if #alive == 0 then return end
+	if not every(alive, function(p) return p.pvpDone or p.handsLeft < 1 end) then return end
+	L.blindActive = false
+	for _, p in ipairs(L.players) do p.inPvp = false end
+	if #alive == 1 then
+		local p = alive[1]
+		p.firstReady, p.pvpDone, p.pvpTimerFailed = false, false, false
+		sendA(p, { action = "endPvP", lost = false, loserIds = {}, opponentsAway = true })
+		return
+	end
+	local timerLosers = filter(alive, function(p) return p.pvpTimerFailed end)
+	local roundLosers = {}
+	if #timerLosers == 0 then
+		local lowest = alive[1]
+		for _, p in ipairs(alive) do if s_lt(p.score, lowest.score) then lowest = p end end
+		local tied = filter(alive, function(p) return s_eq(p.score, lowest.score) end)
+		if #tied == 1 then roundLosers = { lowest } end
+	end
+	for _, p in ipairs(roundLosers) do self:lose_life(p, "round") end
+	for _, p in ipairs(alive) do p.firstReady, p.pvpDone, p.pvpTimerFailed = false, false, false end
+	for _, p in ipairs(alive) do
+		for _, o in ipairs(L.players) do if o ~= p then sendA(p, self:enemy_info(o, true)) end end
+	end
+	if self:check_game_over(L) then return end
+	local losers, ids = {}, {}
+	for _, p in ipairs(roundLosers) do losers[p] = true; ids[#ids + 1] = p.id end
+	for _, p in ipairs(timerLosers) do losers[p] = true; ids[#ids + 1] = p.id end
+	for _, p in ipairs(alive) do
+		sendA(p, { action = "endPvP", lost = losers[p] or false, pvpTimerLost = (#timerLosers > 0) or nil, loserIds = ids })
+	end
+end
+
+function Server:leave(c)
+	local L = c.lobby
+	if not L then return end
+	local was = find(L.players, function(p) return p == c end)
+	remove_value(L.players, c)
+	c.lobby, c.eliminated = nil, false
+	if not was then return end
+	if #L.players == 0 then self:destroy(L); return end
+	if L.isInGame then
+		self:broadcast(L, { action = "playerLeft", playerId = c.id, username = c.username })
+		self:check_game_over(L)
+		if L.isInGame then self:try_start_blind(L); self:try_resolve_pvp(L) end
+	else
+		self:broadcast(L, { action = "stopGame" })
+		self:reset_players(L)
+	end
+	self:lobby_info(L)
+end
+
+--- Transport lost for this connection.
+function Server:disconnect(c)
+	local L = c.lobby
+	if not L then return end
+	local _, idx = find(L.players, function(p) return p == c end)
+	if not idx then return end
+	if not L.isInGame then self:leave(c); return end
+	self.log("Player " .. c.username .. " disconnected from " .. L.code .. "; seat held")
+	L.slots[#L.slots + 1] = { reconnectToken = c.reconnectToken, index = idx, old = c }
+	table.remove(L.players, idx)
+	c.lobby = nil
+	for _, p in ipairs(L.players) do
+		sendA(p, { action = "enemyDisconnected", timeout = 0, playerId = c.id, held = true })
+	end
+	if #L.players == 0 then L.emptySince = self.now(); return end
+	self:try_start_blind(L)
+	self:try_resolve_pvp(L)
+	self:lobby_info(L)
+end
+
+local SLOT_FIELDS = { "lives", "score", "handsLeft", "ante", "skips", "furthestBlind", "isReady", "firstReady",
+	"isReadyLobby", "roundLivesBlocker", "timerLivesBlocker", "location", "eliminated", "pvpDone",
+	"pvpTimerFailed", "playedThisBlind", "blindSeq", "inPvp", "sitOut", "modHash", "isCached" }
+
+function Server:send_resume(L, c, late)
+	sendA(c, { action = "resumeGame", seed = L.seed, ante = math.max(1, c.ante), lives = c.lives, lateJoin = late,
+		eliminated = c.eliminated, blindActive = L.blindActive,
+		inCurrentBlind = (c.inPvp and L.blindActive and c.blindSeq == L.blindSeq) or false })
+	sendA(c, { action = "playerInfo", lives = c.lives })
+	for _, o in ipairs(L.players) do if o ~= c then sendA(c, self:enemy_info(o, true)) end end
+	for _, s in ipairs(L.slots) do sendA(c, self:enemy_info(s.old, true)) end
+end
+
+function Server:reclaim(L, c, slot)
+	remove_value(L.slots, slot)
+	L.emptySince = nil
+	local o = slot.old
+	for _, f in ipairs(SLOT_FIELDS) do c[f] = o[f] end
+	if not c.username or c.username == "Guest" then c.username = o.username end
+	table.insert(L.players, math.min(slot.index, #L.players + 1), c)
+	c.lobby = L
+	local missed = c.inPvp and (not L.blindActive or c.blindSeq ~= L.blindSeq)
+	if missed then c.inPvp, c.pvpDone, c.isReady = false, false, false end
+	sendA(c, { action = "rejoinedLobby", code = L.code, type = L.gameMode, reconnectToken = c.reconnectToken })
+	sendA(c, copy(L.options, { action = "lobbyOptions", gamemode = L.gameMode }))
+	self:send_resume(L, c, false)
+	if missed then sendA(c, { action = "endPvP", lost = false, loserIds = {} }) end
+	for _, p in ipairs(L.players) do
+		if p ~= c then
+			sendA(p, { action = "enemyReconnected", playerId = c.id })
+			sendA(p, self:enemy_info(c, true))
+		end
+	end
+	self:lobby_info(L)
+end
+
+function Server:take_over(L, stale)
+	self:disconnect(stale)
+	pcall(stale.close)
+	return find(L.slots, function(s) return s.old == stale end)
+end
+
+function Server:rejoin(L, c, token)
+	local slot = find(L.slots, function(s) return s.reconnectToken == token end)
+	if not slot and L.isInGame then
+		local stale = find(L.players, function(p) return p.reconnectToken == token and p ~= c end)
+		if stale then slot = self:take_over(L, stale) end
+	end
+	if not slot then return false end
+	self:reclaim(L, c, slot)
+	return true
+end
+
+function Server:late_join(L, c)
+	local all = {}
+	for _, p in ipairs(self:alive(L)) do all[#all + 1] = p end
+	local conn = #all
+	for _, s in ipairs(self:away_alive(L)) do all[#all + 1] = s.old end
+	local minl, mina = math.huge, math.huge
+	for i, p in ipairs(all) do
+		minl = math.min(minl, p.lives)
+		if i <= conn or conn == 0 then mina = math.min(mina, p.ante or 1) end
+	end
+	c.lives = math.max(1, minl == math.huge and 1 or minl)
+	c.ante = math.max(1, mina == math.huge and 1 or mina)
+	c.eliminated, c.isReady, c.firstReady, c.score, c.handsLeft, c.skips = false, false, false, ZERO(), 4, 0
+	c.inPvp, c.pvpDone, c.sitOut = false, false, L.blindActive
+	self:reset_blocker(c)
+	L.players[#L.players + 1] = c
+	c.lobby, c.isReadyLobby = L, true
+	sendA(c, { action = "joinedLobby", code = L.code, type = L.gameMode, reconnectToken = c.reconnectToken })
+	sendA(c, copy(L.options, { action = "lobbyOptions", gamemode = L.gameMode }))
+	self:send_resume(L, c, true)
+	for _, p in ipairs(L.players) do
+		if p ~= c then
+			sendA(p, { action = "playerJoined", playerId = c.id, username = c.username })
+			sendA(p, self:enemy_info(c, true))
+		end
+	end
+	self:lobby_info(L)
+end
+
+function Server:join(L, c)
+	if L.isInGame then
+		local name = base_name(c.username)
+		local slot = find(L.slots, function(s) return base_name(s.old.username) == name end)
+		if slot then return self:reclaim(L, c, slot) end
+		local stale = find(L.players, function(p) return base_name(p.username) == name and p ~= c end)
+		if stale then
+			local s2 = self:take_over(L, stale)
+			if s2 then return self:reclaim(L, c, s2) end
+		end
+		if #L.players + #L.slots < Core.MAX_PLAYERS then return self:late_join(L, c) end
+		return sendA(c, { action = "error", message = "Lobby is full." })
+	end
+	if #L.players >= Core.MAX_PLAYERS then
+		return sendA(c, { action = "error", message = "Lobby is full or does not exist." })
+	end
+	L.players[#L.players + 1] = c
+	c.eliminated, c.lobby, c.isReadyLobby = false, L, false
+	sendA(c, { action = "joinedLobby", code = L.code, type = L.gameMode, reconnectToken = c.reconnectToken })
+	sendA(c, copy(L.options, { action = "lobbyOptions", gamemode = L.gameMode }))
+	self:lobby_info(L)
+end
+
+---------------------------------------------------------------- actions
+local RELAYS = {
+	sendPhantom = true, removePhantom = true, asteroid = true, letsGoGamblingNemesis = true, eatPizza = true,
+	soldJoker = true, spentLastShop = true, magnet = true, magnetResponse = true, getEndGameJokers = true,
+	receiveEndGameJokers = true, getNemesisDeck = true, receiveNemesisDeck = true,
+	endGameStatsRequested = true, nemesisEndGameStats = true, startAnteTimer = true, pauseAnteTimer = true,
+	dataSync = true,
+}
+
+local H = {}
+
+function H.username(S, c, a)
+	c.username = a.username or c.username
+	c.modHash = a.modHash or c.modHash
+	if c.lobby then S:lobby_info(c.lobby) end
+end
+function H.version(S, c, a)
+	local maj, min, pat = tostring(a.version or ""):match("^(%d+)%.(%d+)%.(%d+)")
+	local smaj, smin, spat = Core.SERVER_VERSION:match("^(%d+)%.(%d+)%.(%d+)")
+	if maj then
+		maj, min, pat, smaj, smin, spat = tonumber(maj), tonumber(min), tonumber(pat), tonumber(smaj), tonumber(smin), tonumber(spat)
+		if maj < smaj or (maj == smaj and min < smin) or (maj == smaj and min == smin and pat < spat) then
+			sendA(c, { action = "error", message = "[WARN] Server expecting version " .. Core.SERVER_VERSION })
+		end
+	end
+end
+function H.createLobby(S, c, a) S:new_lobby(c, a.gameMode) end
+function H.joinLobby(S, c, a)
+	local L = S.lobbies[a.code or ""]
+	if not L then return sendA(c, { action = "error", message = "Lobby does not exist." }) end
+	S:join(L, c)
+end
+function H.rejoinLobby(S, c, a)
+	local L = S.lobbies[a.code or ""]
+	if not L then return sendA(c, { action = "rejoinFailed", message = "Lobby no longer exists." }) end
+	if not S:rejoin(L, c, a.reconnectToken) then
+		if L.isInGame and find(L.slots, function(s) return base_name(s.old.username) == base_name(c.username) end) then
+			return S:join(L, c)
+		end
+		sendA(c, { action = "rejoinFailed", message = "Could not rejoin lobby. Token invalid or slot expired." })
+	end
+end
+function H.lobbyInfo(S, c) if c.lobby then S:lobby_info(c.lobby) end end
+function H.leaveLobby(S, c) S:leave(c) end
+function H.readyLobby(S, c) c.isReadyLobby = true; if c.lobby then S:lobby_info(c.lobby) end end
+function H.unreadyLobby(S, c) c.isReadyLobby = false; if c.lobby then S:lobby_info(c.lobby) end end
+function H.keepAlive(S, c) sendA(c, { action = "keepAliveAck" }) end
+function H.keepAliveAck() end
+function H.startGame(S, c)
+	local L = c.lobby
+	if not L or L.players[1] ~= c then return end
+	if #L.players < 2 then return sendA(c, { action = "error", message = "Need at least 2 players to start." }) end
+	local lives = tonumber(L.options.starting_lives) or Core.STARTING_LIVES[L.gameMode] or 4
+	local seed = nil
+	if not L.options.different_seeds then seed = rand_str("ABCDEFGHIJKLMNPQRSTUVWXYZ123456789", 8) end
+	L.seed = seed
+	S:reset_players(L)
+	L.isInGame = true
+	S:broadcast(L, { action = "startGame", deck = "c_multiplayer_1", seed = seed, playerCount = #L.players })
+	for _, p in ipairs(L.players) do p.lives, p.eliminated = lives, false end
+	S:broadcast(L, { action = "playerInfo", lives = lives })
+	for i = 2, #L.players do L.players[i].isReadyLobby = false end
+	for _, p in ipairs(L.players) do
+		for _, o in ipairs(L.players) do if o ~= p then sendA(p, S:enemy_info(o, true)) end end
+	end
+end
+function H.readyBlind(S, c)
+	local L = c.lobby
+	if not L or c.eliminated then return end
+	c.isReady = true
+	local other = find(S:alive(L), function(p) return p ~= c and (p.isReady or p.firstReady) end)
+	if not c.firstReady and not other then
+		c.firstReady = true
+		L.firstReadyAt = S.now()
+		sendA(c, { action = "speedrun" })
+	elseif L.firstReadyAt and S.now() - L.firstReadyAt <= 30 and not c.firstReady then
+		sendA(c, { action = "speedrun" })
+	end
+	S:try_start_blind(L)
+end
+function H.unreadyBlind(S, c) c.isReady = false end
+function H.playHand(S, c, a)
+	local L = c.lobby
+	if not L or not L.isInGame or c.eliminated then return end
+	c.score = parse_score(a.score)
+	c.score.str = tostring(a.score or "0")
+	c.handsLeft = math.floor(tonumber(a.handsLeft) or 0)
+	local hide = L.options.hide_score_until_played and true or false
+	if s_gt(c.score, ZERO()) then c.playedThisBlind = true end
+	if c.handsLeft < 1 then c.pvpDone = true end
+	local ranking = {}
+	for _, p in ipairs(S:alive(L)) do ranking[#ranking + 1] = p end
+	table.sort(ranking, function(x, y)
+		if s_eq(x.score, y.score) then return (x.firstReady and 1 or 0) > (y.firstReady and 1 or 0) end
+		return s_gt(x.score, y.score)
+	end)
+	local order = {}
+	for i, p in ipairs(ranking) do order[i] = p.id end
+	for _, o in ipairs(L.players) do
+		if o ~= c then
+			sendA(o, copy(S:enemy_info(c, not hide or o.playedThisBlind), { pvpTimerOrder = order[1] == c.id and "guest" or "host", pvpOrder = order }))
+			sendA(c, copy(S:enemy_info(o, not hide or c.playedThisBlind), { pvpTimerOrder = order[1] == c.id and "host" or "guest", pvpOrder = order }))
+		end
+	end
+	S:try_resolve_pvp(L)
+end
+function H.failPvPTimer(S, c)
+	local L = c.lobby
+	S:lose_life(c, "timer")
+	if not L then return end
+	c.pvpDone, c.pvpTimerFailed = true, true
+	if S:check_game_over(L) then return end
+	S:try_resolve_pvp(L)
+end
+function H.stopGame(S, c)
+	if not c.lobby then return end
+	S:broadcast(c.lobby, { action = "stopGame" })
+	S:reset_players(c.lobby)
+end
+function H.lobbyOptions(S, c, a)
+	local L = c.lobby
+	if not L then return end
+	local opts = {}
+	for k, v in pairs(a) do
+		if k ~= "action" then
+			if v == "true" then v = true elseif v == "false" then v = false end
+			L.options[k] = v
+			opts[k] = a[k]
+		end
+	end
+	for i = 2, #L.players do sendA(L.players[i], copy(opts, { action = "lobbyOptions", gamemode = L.gameMode })) end
+end
+function H.failRound(S, c)
+	local L = c.lobby
+	if not L then return end
+	if L.options.death_on_round_loss then S:lose_life(c, "round") end
+	S:check_game_over(L)
+end
+function H.failTimer(S, c)
+	local L = c.lobby
+	S:lose_life(c, "timer")
+	if L then S:check_game_over(L) end
+end
+function H.setAnte(S, c, a) c.ante = tonumber(a.ante) or c.ante end
+function H.setLocation(S, c, a) S:set_location(c, a.location) end
+function H.newRound(S, c) S:reset_blocker(c) end
+function H.setFurthestBlind(S, c, a) c.furthestBlind = tonumber(a.furthestBlind) or c.furthestBlind end
+function H.skip(S, c, a)
+	c.skips = tonumber(a.skips) or c.skips
+	if c.lobby then S:to_opponents(c, S:enemy_info(c, true)) end
+end
+function H.syncClient(S, c, a) c.isCached = a.isCached and true or false end
+function H.resumeRestarted(S, c)
+	local L = c.lobby
+	if not L then return end
+	if L.blindActive then
+		c.sitOut, c.inPvp = true, false
+		S:try_resolve_pvp(L)
+	end
+	c.isReady = false
+end
+function H.moddedAction(S, c, a)
+	local L = c.lobby
+	if not L then return end
+	local msg = copy(a, { action = "moddedAction", from = L.players[1] == c and "host" or "guest" })
+	msg.target = nil
+	if (a.target or "nemesis") == "all" then S:broadcast(L, msg) else S:to_opponents(c, msg) end
+end
+function H.submitLogHashes() end
+function H.streamLogLines() end
+function H.gameInfo() end
+function H.handyMPExtensionEnable() end
+function H.handyMPExtensionDisable() end
+function H.tcgServerVersion() end
+
+--- Handle one action table from connection c.
+function Server:receive(c, a)
+	if type(a) ~= "table" or type(a.action) ~= "string" then return end
+	local h = H[a.action]
+	if h then
+		local ok, err = pcall(h, self, c, a)
+		if not ok then self.log("p2p server error in " .. a.action .. ": " .. tostring(err)) end
+	elseif RELAYS[a.action] and c.lobby then
+		local msg = copy(a, { playerId = c.id })
+		local tid = msg.targetId
+		msg.targetId = nil
+		-- 3P: end-game requests/responses can target one player (the nemesis / the requester)
+		local target = tid and find(c.lobby.players, function(p) return p ~= c and p.id == tid end)
+		if target then sendA(target, msg) else self:to_opponents(c, msg) end
+	end
+end
+
+--- Periodic housekeeping (call ~once per second).
+function Server:tick()
+	local now = self.now()
+	for code, L in pairs(self.lobbies) do
+		if #L.players == 0 and L.emptySince and now - L.emptySince > Core.EMPTY_LOBBY_TTL then
+			self:destroy(L)
+		end
+	end
+end
+
+return Core

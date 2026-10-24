@@ -1,0 +1,21 @@
+-- stdin/stdout bridge so the Node tests can drive the Lua P2P server core.
+package.path = arg[1] .. "/?.lua;" .. package.path
+local json = require("dkjson")
+local Core = dofile(arg[2])
+math.randomseed(os.time())
+local S = Core.new({ log = function(m) io.stderr:write(m .. "\n") end })
+local conns = {}
+local function out(t) io.stdout:write(json.encode(t) .. "\n"); io.stdout:flush() end
+for line in io.lines() do
+	local f = json.decode(line)
+	if f then
+		if f.t == "open" then
+			local id = f.id
+			conns[id] = S:connect(function(m) out({ id = id, m = m }) end, function() out({ id = id, close = true }) end)
+		elseif f.t == "msg" and conns[f.id] then
+			S:receive(conns[f.id], f.m)
+		elseif f.t == "close" and conns[f.id] then
+			S:disconnect(conns[f.id]); conns[f.id] = nil
+		end
+	end
+end

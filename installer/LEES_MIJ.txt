@@ -1,0 +1,58 @@
+Balatro Multiplayer 3P  v0.6.6~3P  (onofficiële fork, door Trust Ben Dover)
+==========================================================================
+3-speler Attrition voor Balatro Multiplayer. Iedereen in het spel heeft deze mod nodig.
+Windows + Steam-versie van Balatro.
+
+UPDATEN VANAF EEN OUDERE VERSIE: iedereen (host EN vrienden) moet 0.6.6 installeren. Draai gewoon
+Install.bat opnieuw; hij vervangt de oude versie en houdt je instellingen.
+
+INSTALLEREN
+1. Sluit Balatro. Pak de hele zip uit (niet vanuit de zip starten).
+2. Dubbelklik Install.bat.
+   - Windows SmartScreen ("Windows heeft uw pc beschermd"): "Meer informatie" -> "Toch uitvoeren".
+     Het is een gewoon batch/PowerShell-script; je kunt install.ps1 eerst lezen.
+3. De installer zoekt Balatro, installeert Lovely (modloader), Steamodded 1.0.0~BETA-1620a en
+   de 3P-mod, en maakt een backup van alles wat hij vervangt (%APPDATA%\Balatro\MP3P-backup-*).
+4. Kies hoe je speelt:
+   1 = via Steam (STANDAARD, aanbevolen): geen server, geen port forwarding, geen Tailscale.
+   2 = via een serveradres (playit.gg / Tailscale / publiek IP + poort, standaard 8788).
+5. Start Balatro gewoon via Steam. In het hoofdmenu staat 0.6.6~3P.
+
+UPDATES (vanaf 0.6.6)
+- Bij een nieuwe versie staat er in het hoofdmenu (linksboven) een knop "Update available: vX".
+  Klik erop en sluit Balatro: de updater downloadt de nieuwe Installer-zip van GitHub, controleert
+  de SHA256, installeert hem (instellingen blijven) en zegt wanneer je Balatro weer kunt starten.
+- Of start Update.bat (in deze map, of in %APPDATA%\Balatro\Mods\BalatroMultiplayer3P\updater).
+- Releases: https://github.com/trustbendover/BalatroMultiplayer3P/releases
+- Update-check uitzetten: zet de regel update_check=false in het .env-bestand.
+
+STEUN: vind je de mod leuk? https://ko-fi.com/trustbendover
+
+SPELEN IN STEAM-MODUS (keuze 1)
+- Iedereen kan hosten: Play -> Create Lobby. De Balatro van de host is de server, dus de host
+  moet Balatro open laten tot het spel klaar is.
+- Joinen met code: Play -> Join Lobby -> code typen. Wacht ~10 seconden nadat de host de lobby
+  heeft gemaakt: Steam heeft even nodig voordat de lobby vindbaar is.
+- EXPERIMENTEEL: knop "Invite Steam friend" in de lobby (Steam-overlay), en Steam-vriendenlijst
+  -> rechtsklik op de host -> "Join game". Accepteren = joinen zonder code. Werkt het niet? Play -> "Join Steam invite again",
+  of kopieer de code en kies "Join From Clipboard" (werkt ook met een Steam-lobby-id), of typ de code.
+- Rejoin: verbinding kwijt of gecrasht? Start Balatro en join opnieuw met dezelfde code en
+  dezelfde naam: je krijgt je plek, levens en ante terug (plek blijft vast tot het einde).
+- Late join: een 3e speler kan in een lopend spel komen; start op de laagste ante/levens en
+  zit een blind die al bezig is uit.
+
+SERVERMODUS (keuze 2)
+De host draait de 3P-server (poort 8788) en deelt die via playit.gg, Tailscale of port forwarding.
+Wisselen kan altijd: Install.bat opnieuw, of %APPDATA%\Balatro\Mods\BalatroMultiplayer3P\.env
+aanpassen (regel mode=steam = Steam-modus).
+
+PROBLEMEN
+- Spel start niet / geen "Mods"-knop: een oude Lovely "version.dll" in de Balatro-map botst met
+  Lovely 0.10 (winmm.dll). De installer haalt hem weg (met backup).
+- Crash in overrides.lua: verkeerde Steamodded-versie. Nodig: precies 1.0.0~BETA-1620a;
+  draai Install.bat opnieuw.
+- "No Steam lobby found": 10 s wachten en opnieuw; code checken; host moet nog in de lobby zitten.
+- Logs: %APPDATA%\Balatro\Mods\lovely\log\ (nieuwste bestand), zoek op "Steam P2P".
+- Verwijderen: Uninstall.bat zet de backups terug.
+
+CREDITS / LICENTIE: zie CREDITS.txt, LICENSE.txt (GPL-3.0), payload\LOVELY_LICENSE.txt (MIT).

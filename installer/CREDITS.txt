@@ -1,0 +1,22 @@
+Balatro Multiplayer 3P - credits
+================================
+UNOFFICIAL FORK. Not affiliated with, endorsed by or supported by LocalThunk, Playstack,
+or the Balatro Multiplayer team. Balatro is (c) LocalThunk / Playstack; you need your own copy.
+
+3P fork (3-player Attrition, Lua server port, Steam peer-to-peer mode, updater): Trust Ben Dover
+  https://github.com/trustbendover/BalatroMultiplayer3P  -  support: https://ko-fi.com/trustbendover
+
+Based on:
+- Balatro Multiplayer mod - Virtualized and the Balatro Multiplayer contributors
+  https://github.com/Balatro-Multiplayer/BalatroMultiplayer  (GPL-3.0)
+- BalatroMultiplayerAPI-Server - Balatro Multiplayer team (GPL-3.0); ported to Lua for Steam mode
+  https://github.com/Balatro-Multiplayer/BalatroMultiplayerAPI-Server
+Bundled, unmodified:
+- Steamodded 1.0.0~BETA-1620a - Steamodded team (GPL-3.0) https://github.com/Steamodded/smods
+- Lovely 0.10.0 (winmm.dll) - Ethan Green and contributors (MIT, payload\LOVELY_LICENSE.txt)
+  https://github.com/ethangreen-dev/lovely-injector
+
+License: the mod is GPL-3.0 (LICENSE.txt). If you publish/distribute this, GPL-3.0 requires
+you to also make the corresponding source available: the source zip of the same release
+(https://github.com/trustbendover/BalatroMultiplayer3P/releases).
+Details of the changes: payload\BalatroMultiplayer3P\FORK_NOTICE.md
