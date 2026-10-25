@@ -38,6 +38,7 @@ jobs:
           luajit tests/test_updater.lua
           luajit tests/test_koth.lua
           luajit tests/test_koth_client.lua
+          luajit tests/test_jokers_3p.lua
 
       - name: Server tests
         working-directory: server

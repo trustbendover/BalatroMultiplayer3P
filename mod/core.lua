@@ -340,6 +340,7 @@ MP.load_mp_dir("objects/jokers/sandbox")
 MP.load_mp_dir("objects/jokers/sandbox/extra-credit")
 MP.load_mp_dir("objects/jokers/standard")
 MP.load_mp_dir("objects/jokers/experimental")
+MP.load_mp_dir("objects/jokers/threep") -- 3P fork: special 3-player jokers
 MP.load_mp_dir("objects/stakes")
 MP.load_mp_dir("objects/tags")
 MP.load_mp_dir("objects/consumables")

@@ -69,6 +69,67 @@ return {
 			},
 		},
 		Joker = {
+			j_mp_third_wheel = {
+				name = "Third Wheel",
+				text = {
+					"{C:mult}+#1#{} Mult for each opponent",
+					"with more {C:red}lives{} than you",
+					"{C:inactive}(Currently {C:mult}+#2#{C:inactive} Mult)",
+				},
+			},
+			j_mp_vulture = {
+				name = "Vulture",
+				text = {
+					"When an opponent is {C:red}eliminated{},",
+					"earn {C:money}$#1#{} and gain {C:attention}+1{} hand size",
+					"{C:inactive}(Max {C:attention}+#2#{C:inactive}, currently {C:attention}+#3#{C:inactive})",
+				},
+			},
+			j_mp_laughing_third = {
+				name = "Laughing Third",
+				text = {
+					"Gains {X:mult,C:white}X#1#{} Mult whenever",
+					"an opponent loses a {C:red}life{}",
+					"{C:inactive}(Currently {X:mult,C:white}X#2#{C:inactive} Mult)",
+				},
+			},
+			j_mp_kingslayer = {
+				name = "Kingslayer",
+				text = {
+					"{X:mult,C:white}X#1#{} Mult in {X:purple,C:white}Nemesis{} blinds while",
+					"an opponent leads",
+					"{C:inactive}(King of the Hill: someone else is King,",
+					"{C:inactive}otherwise: an opponent has the most lives)",
+					"{C:inactive}(Currently #2#)",
+				},
+			},
+			j_mp_bounty_hunter = {
+				name = "Bounty Hunter",
+				text = {
+					"Whenever the leader falls, earn {C:money}$#1#{}",
+					"and gain {C:mult}+#2#{} Mult",
+					"{C:inactive}(King dethroned, or the opponent with",
+					"{C:inactive}the most lives loses a life)",
+					"{C:inactive}(Currently {C:mult}+#3#{C:inactive} Mult)",
+				},
+			},
+			j_mp_middle_of_the_pack = {
+				name = "Middle of the Pack",
+				text = {
+					"{X:mult,C:white}X#1#{} Mult while one opponent has",
+					"more {C:red}lives{} than you and one has fewer,",
+					"otherwise {C:mult}+#2#{} Mult",
+					"{C:inactive}(Currently #3#)",
+				},
+			},
+			j_mp_triumvirate = {
+				name = "Triumvirate",
+				text = {
+					"In {X:purple,C:white}Nemesis{} blinds, {X:mult,C:white}X1{} Mult",
+					"for each player still in the match",
+					"{C:inactive}(Currently {X:mult,C:white}X#1#{C:inactive} Mult)",
+				},
+			},
 			j_mp_seltzer = {
 				name = "Seltzer",
 				text = {
@@ -1169,6 +1230,8 @@ return {
 			mp_sticker_draining = "Draining",
 		},
 		dictionary = {
+			k_mp3p_active = "active",
+			k_mp3p_inactive = "inactive",
 			k_koth = "King of the Hill",
 			k_koth_description = "Built for 3 players. Every boss blind is a Nemesis blind; the lowest score loses a life. The top score becomes King and carries a bounty that grows each PvP he stays on top. Beat the King to claim the bounty ($, and +1 life at bounty 3+) and the crown. Crown shield: if the King scores lowest he loses the crown instead of a life. Hold the hill for 4 PvPs in a row, or be the last one standing, to win.",
 			k_koth_you = "You",

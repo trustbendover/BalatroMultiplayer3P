@@ -2,6 +2,67 @@
 return {
 	descriptions = {
 		Joker = {
+			j_mp_third_wheel = {
+				name = "Derde Wiel",
+				text = {
+					"{C:mult}+#1#{} Mult voor elke tegenstander",
+					"met meer {C:red}levens{} dan jij",
+					"{C:inactive}(Nu {C:mult}+#2#{C:inactive} Mult)",
+				},
+			},
+			j_mp_vulture = {
+				name = "Gier",
+				text = {
+					"Als een tegenstander {C:red}uitgeschakeld{} wordt:",
+					"{C:money}$#1#{} en {C:attention}+1{} handgrootte",
+					"{C:inactive}(Max {C:attention}+#2#{C:inactive}, nu {C:attention}+#3#{C:inactive})",
+				},
+			},
+			j_mp_laughing_third = {
+				name = "Lachende Derde",
+				text = {
+					"Krijgt {X:mult,C:white}X#1#{} Mult erbij telkens",
+					"als een tegenstander een {C:red}leven{} verliest",
+					"{C:inactive}(Nu {X:mult,C:white}X#2#{C:inactive} Mult)",
+				},
+			},
+			j_mp_kingslayer = {
+				name = "Koningsdoder",
+				text = {
+					"{X:mult,C:white}X#1#{} Mult in {X:purple,C:white}Aartsvijand{}-blinds zolang",
+					"een tegenstander aan kop gaat",
+					"{C:inactive}(King of the Hill: iemand anders is Koning,",
+					"{C:inactive}anders: een tegenstander heeft de meeste levens)",
+					"{C:inactive}(Nu #2#)",
+				},
+			},
+			j_mp_bounty_hunter = {
+				name = "Premiejager",
+				text = {
+					"Als de koploper valt: {C:money}$#1#{}",
+					"en {C:mult}+#2#{} Mult erbij",
+					"{C:inactive}(Koning onttroond, of de tegenstander met",
+					"{C:inactive}de meeste levens verliest een leven)",
+					"{C:inactive}(Nu {C:mult}+#3#{C:inactive} Mult)",
+				},
+			},
+			j_mp_middle_of_the_pack = {
+				name = "Middenmoot",
+				text = {
+					"{X:mult,C:white}X#1#{} Mult als één tegenstander meer",
+					"en één minder {C:red}levens{} heeft dan jij,",
+					"anders {C:mult}+#2#{} Mult",
+					"{C:inactive}(Nu #3#)",
+				},
+			},
+			j_mp_triumvirate = {
+				name = "Driemanschap",
+				text = {
+					"In {X:purple,C:white}Aartsvijand{}-blinds {X:mult,C:white}X1{} Mult",
+					"voor elke speler die nog meedoet",
+					"{C:inactive}(Nu {X:mult,C:white}X#1#{C:inactive} Mult)",
+				},
+			},
 			j_broken = {
 				name = "KAPOT",
 				text = {
@@ -152,6 +213,8 @@ return {
 			mp_phantom = "Spook",
 		},
 		dictionary = {
+			k_mp3p_active = "actief",
+			k_mp3p_inactive = "inactief",
 			k_koth = "King of the Hill",
 			k_koth_description = "Gemaakt voor 3 spelers. Elke boss blind is een Nemesis-blind; de laagste score verliest een leven. De hoogste score wordt Koning en draagt een premie die groeit zolang hij bovenaan blijft. Versla de Koning en je pakt de premie ($, en +1 leven bij premie 3+) en de kroon. Kroonschild: scoort de Koning het laagst, dan verliest hij de kroon in plaats van een leven. Houd de heuvel 4 PvP's op rij vast, of blijf als laatste over, om te winnen.",
 			k_koth_you = "Jij",
