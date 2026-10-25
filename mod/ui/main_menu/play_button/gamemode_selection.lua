@@ -12,6 +12,7 @@ function G.UIDEF.gamemode_selection_options()
 			buttons = {
 				{ button_id = "attrition_gamemode_button", button_localize_key = "k_attrition" },
 				{ button_id = "showdown_gamemode_button", button_localize_key = "k_showdown" },
+				{ button_id = "koth_gamemode_button", button_localize_key = "k_koth" },
 			},
 		},
 		{

@@ -53,13 +53,18 @@ function MP.THREEP.refresh_hud()
 			parts[#parts + 1] = tostring(e.username) .. " X"
 		else
 			local sc = hide and "???" or MP.INSANE_INT.to_string(e.real_score or MP.INSANE_INT.empty())
-			parts[#parts + 1] = string.format("%s %s (%sh) %sL%s", tostring(e.username), sc, tostring(e.hands or "?"), tostring(e.lives or "?"), e.away and " (away)" or "")
+			local crown = (MP.KOTH and MP.KOTH.name_prefix) and MP.KOTH.name_prefix(e.id) or ""
+			parts[#parts + 1] = string.format("%s%s %s (%sh) %sL%s", crown, tostring(e.username), sc, tostring(e.hands or "?"), tostring(e.lives or "?"), e.away and " (away)" or "")
 		end
 	end
 	if #parts == 0 then
 		MP.GAME.enemy.hud_title = MP.GAME.enemy.username or ""
 	else
 		MP.GAME.enemy.hud_title = table.concat(parts, " | ")
+	end
+	if MP.GAME.koth and MP.KOTH and MP.KOTH.status_text then
+		local st = MP.GAME.koth
+		if st.kingId and st.kingId == st.you then MP.GAME.enemy.hud_title = "[K] " .. MP.GAME.enemy.hud_title end
 	end
 	MP.GAME.enemy.opponents_text = MP.GAME.enemy.hud_title
 end

@@ -32,6 +32,13 @@ const GameModes: {
       else return { small: 'bl_pvp', big: 'bl_pvp', boss: 'bl_pvp' }
 		},
 	},
+	koth: {
+		// King of the Hill / Bounty (3P): attrition blinds, crown + bounty rules in koth.ts
+		startingLives: 3,
+		getBlindFromAnte: (ante, options) => {
+			return { boss: "bl_pvp" };
+		},
+	},
 	survival: {
 		startingLives: 1,
 		getBlindFromAnte: (ante, options) => {

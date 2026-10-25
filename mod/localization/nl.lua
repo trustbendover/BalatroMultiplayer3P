@@ -152,6 +152,15 @@ return {
 			mp_phantom = "Spook",
 		},
 		dictionary = {
+			k_koth = "King of the Hill",
+			k_koth_description = "Gemaakt voor 3 spelers. Elke boss blind is een Nemesis-blind; de laagste score verliest een leven. De hoogste score wordt Koning en draagt een premie die groeit zolang hij bovenaan blijft. Versla de Koning en je pakt de premie ($, en +1 leven bij premie 3+) en de kroon. Kroonschild: scoort de Koning het laagst, dan verliest hij de kroon in plaats van een leven. Houd de heuvel 4 PvP's op rij vast, of blijf als laatste over, om te winnen.",
+			k_koth_you = "Jij",
+			k_koth_no_king = "Nog geen Koning - de hoogste score pakt de kroon",
+			k_koth_msg_you_hill = "Je hebt de heuvel vastgehouden! Gewonnen!",
+			k_koth_msg_life = "+1 leven door de premie!",
+			k_koth_msg_shield = "Kroonschild: je verliest de kroon, geen leven",
+			k_koth_msg_crowned = "Jij bent de Koning! Beide rivalen jagen op je",
+			k_koth_msg_lost = "Je bent de kroon kwijt",
 			b_singleplayer = "Singleplayer",
 			b_join_lobby = "Sluit je aan bij een lobby",
 			b_return_lobby = "Ga terug naar lobby",
@@ -303,6 +312,10 @@ return {
 			loc_playing = "Speelt ",
 		},
 		v_dictionary = {
+			k_koth_status = "Koning: #1#  |  Premie #2#  |  Heuvel #3#/#4#",
+			k_koth_msg_hill = "#1# hield de heuvel vast en wint!",
+			k_koth_msg_claimed = "Premie gepakt! +$#1#",
+			k_koth_msg_other_claimed = "#1# onttroonde #2# (+$#3#)",
 			a_mp_art = {
 				"Kunst: #1#",
 			},

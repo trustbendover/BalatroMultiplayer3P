@@ -36,6 +36,8 @@ jobs:
           luajit tests/test_three_player.lua
           luajit tests/test_steam_p2p.lua
           luajit tests/test_updater.lua
+          luajit tests/test_koth.lua
+          luajit tests/test_koth_client.lua
 
       - name: Server tests
         working-directory: server

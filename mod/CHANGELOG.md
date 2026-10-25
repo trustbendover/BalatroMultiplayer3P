@@ -47,6 +47,15 @@
 - **Ouija** — Destroys 3 cards instead of converting all cards to a single suit and reducing hand size.
 - **Judgment** — Now draws from its own queue (vanilla behavior) on Orange Stake and above. Still uses the shop queue on lower stakes.
 
+## 0.6.7~3P (in development - not released yet)
+- New gamemode **King of the Hill / Bounty**, designed for 3 players (lobby: Battle -> King of the Hill).
+  Top PvP score becomes King and carries a bounty that grows each PvP he stays on top; beating the
+  King claims the bounty ($4 x bounty, +1 life at bounty 3+) and the crown; crown shield (a King with
+  the lowest score loses the crown, not a life); holding the hill for 4 PvPs in a row wins.
+  Rules in networking/koth_rules.lua + server/src/koth.ts (shared test vectors), client in lib/koth.lua,
+  gamemode in gamemodes/koth.lua. Design: docs/KING_OF_THE_HILL_NL.md.
+- Fix (Steam P2P host): lobbyOptions sent to guests now keep the host's full gamemode key, like the TS server.
+
 ## 0.6.6~3P (Trust Ben Dover)
 - Auto-update: after the main menu loads the mod checks (in the background, 15 s timeout, silent
   when offline) https://api.github.com/repos/trustbendover/BalatroMultiplayer3P/releases/latest,

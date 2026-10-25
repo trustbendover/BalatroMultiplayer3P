@@ -50,7 +50,7 @@ Server mode (TCP) is still available: see [`server/`](server/) and choose option
 | [`docs/`](docs/) | [Releasing](docs/RELEASING.md), [test checklist (NL)](docs/TESTING_NL.md) |
 | [`tools/`](tools/) | `build_release.py` — builds the Installer zip, source zip and SHA256SUMS |
 
-Tests: `cd mod && luajit tests/test_three_player.lua && luajit tests/test_steam_p2p.lua && luajit tests/test_updater.lua`,
+Tests: `cd mod && luajit tests/test_three_player.lua && luajit tests/test_steam_p2p.lua && luajit tests/test_updater.lua && luajit tests/test_koth.lua && luajit tests/test_koth_client.lua`,
 `cd server && npm ci && npm test && npm run test:lua`.
 
 ## Credits

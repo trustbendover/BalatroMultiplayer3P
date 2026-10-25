@@ -37,8 +37,9 @@ export type ActionStartGame = {
 	playerCount?: number
 }
 export type ActionStartBlind = { action: 'startBlind', firstPlayer?: "host" | "guest", firstPlayerId?: string }
-export type ActionWinGame = { action: 'winGame' }
-export type ActionLoseGame = { action: 'loseGame' }
+export type ActionWinGame = { action: 'winGame'; reason?: string }
+export type ActionLoseGame = { action: 'loseGame'; reason?: string }
+export type ActionKothUpdate = { action: 'kothUpdate'; you: string } & import('./koth.js').KothEvent
 export type ActionGameInfo = {
 	action: 'gameInfo'
 	small?: string
@@ -92,6 +93,7 @@ export type ActionTcgStartTurn = { action: 'tcgStartTurn', [key: string]: unknow
 // Modded Actions
 export type ActionModded = { action: 'moddedAction', modId: string, modAction: string, from: 'host' | 'guest', target?: 'nemesis' | 'all', [key: string]: unknown }
 export type ActionServerToClient =
+	| ActionKothUpdate
 	| ActionResumeGame
 	| ActionPlayerJoined
 	| ActionRejoinFailed
@@ -288,4 +290,4 @@ export type ActionHandlers = {
 export type ActionHandlerArgs<T extends HandledActions> = Omit<T, 'action'>
 
 // Other types
-export type GameMode = 'attrition' | 'showdown' | 'survival'
+export type GameMode = 'attrition' | 'showdown' | 'survival' | 'koth'

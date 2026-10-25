@@ -1169,6 +1169,15 @@ return {
 			mp_sticker_draining = "Draining",
 		},
 		dictionary = {
+			k_koth = "King of the Hill",
+			k_koth_description = "Built for 3 players. Every boss blind is a Nemesis blind; the lowest score loses a life. The top score becomes King and carries a bounty that grows each PvP he stays on top. Beat the King to claim the bounty ($, and +1 life at bounty 3+) and the crown. Crown shield: if the King scores lowest he loses the crown instead of a life. Hold the hill for 4 PvPs in a row, or be the last one standing, to win.",
+			k_koth_you = "You",
+			k_koth_no_king = "No King yet - top score takes the crown",
+			k_koth_msg_you_hill = "You held the hill! Victory!",
+			k_koth_msg_life = "+1 life from the bounty!",
+			k_koth_msg_shield = "Crown shield: you lose the crown, not a life",
+			k_koth_msg_crowned = "You are the King! Both rivals are after you",
+			k_koth_msg_lost = "You lost the crown",
 			b_singleplayer = "Singleplayer",
 			b_sp_with_ruleset = "Practice Mode",
 			b_practice = "Practice",
@@ -1456,6 +1465,10 @@ return {
             b_open_log_parser = "Log Parser",
 		},
 		v_dictionary = {
+			k_koth_status = "King: #1#  |  Bounty #2#  |  Hill #3#/#4#",
+			k_koth_msg_hill = "#1# held the hill and wins!",
+			k_koth_msg_claimed = "Bounty claimed! +$#1#",
+			k_koth_msg_other_claimed = "#1# dethroned #2# (+$#3#)",
 			a_mp_art = {
 				"Art: #1#",
 			},

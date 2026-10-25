@@ -1,6 +1,7 @@
 import type Client from "./Client.js";
 import { InsaneInt } from "./InsaneInt.js";
 import GameModes from "./GameMode.js";
+import { type KothEvent, type KothState, kothConfig, kothSnapshot, newKothState, resolveKoth } from "./koth.js";
 import type {
 	ActionLobbyInfo,
 	ActionServerToClient,
@@ -80,6 +81,8 @@ class Lobby {
 	seed: string | null = null;
 	/** 3P: a blind has started and its PvP result hasn't been resolved yet */
 	blindActive = false;
+	/** King of the Hill: crown state (null unless gameMode === "koth" and a game runs) */
+	koth: KothState | null = null;
 	/** 3P: increments for every started PvP blind */
 	blindSeq = 0;
 	/** 3P: deletes the lobby if nobody reconnects while it's empty mid-game */
@@ -194,6 +197,7 @@ class Lobby {
 		] as const;
 		for (const f of fields) (newClient as any)[f] = (o as any)[f];
 		if (!newClient.username || newClient.username === "Guest") newClient.username = o.username;
+		if (this.koth && this.koth.kingId === o.id) this.koth.kingId = newClient.id;
 
 		this.players.splice(Math.min(slot.index, this.players.length), 0, newClient);
 		newClient.setLobby(this);
@@ -210,6 +214,7 @@ class Lobby {
 		newClient.sendAction({ action: "rejoinedLobby", code: this.code, type: this.gameMode, reconnectToken: newClient.reconnectToken });
 		newClient.sendAction({ action: "lobbyOptions", gamemode: this.gameMode, ...this.options });
 		this.sendResume(newClient, false);
+		this.kothBroadcast();
 		if (missedBlind) newClient.sendAction({ action: "endPvP", lost: false, loserIds: [] });
 
 		for (const p of this.players) {
@@ -322,6 +327,7 @@ class Lobby {
 		client.sendAction({ action: "joinedLobby", code: this.code, type: this.gameMode, reconnectToken: client.reconnectToken });
 		client.sendAction({ action: "lobbyOptions", gamemode: this.gameMode, ...this.options });
 		this.sendResume(client, true);
+		this.kothBroadcast();
 		for (const p of this.players) {
 			if (p.id !== client.id) {
 				p.sendAction({ action: "playerJoined", playerId: client.id, username: client.username });
@@ -464,6 +470,56 @@ class Lobby {
 		eliminated: p.eliminated,
 	});
 
+	// ---------------- King of the Hill ----------------
+	kothActive = () => this.gameMode === "koth";
+
+	kothResolve = (alive: Client[], roundLosers: Client[]): KothEvent | null => {
+		if (!this.kothActive()) return null;
+		if (!this.koth) this.koth = newKothState();
+		const cfg = kothConfig(this.options);
+		const ev = resolveKoth(
+			this.koth,
+			alive.map((p) => ({ id: p.id, name: p.username, score: p.score })),
+			roundLosers.length === 1 ? roundLosers[0].id : null,
+			(a, b) => a.greaterThan(b),
+			(a, b) => a.equalTo(b),
+			cfg,
+		);
+		if (ev.lifeBonus && ev.claimedBy) {
+			const p = alive.find((x) => x.id === ev.claimedBy);
+			if (p && p.lives < cfg.startingLives) {
+				p.lives += 1;
+				p.sendAction({ action: "playerInfo", lives: p.lives });
+			} else ev.lifeBonus = false;
+		}
+		return ev;
+	};
+
+	/** Send the King state to everyone (personalised with "you" = their own id). */
+	kothBroadcast = (ev?: KothEvent) => {
+		if (!this.kothActive()) return;
+		if (!this.koth) this.koth = newKothState();
+		const e = ev ?? kothSnapshot(this.koth, new Map(this.players.map((p) => [p.id, p.username])), kothConfig(this.options));
+		for (const p of this.players) p.sendAction({ ...e, action: "kothUpdate", you: p.id });
+	};
+
+	/** The King held the hill long enough: everyone else is out. */
+	kothHillWin = (winnerId: string): boolean => {
+		const winner = this.players.find((p) => p.id === winnerId);
+		if (!winner) return false;
+		for (const p of this.players) {
+			if (p.id === winnerId || p.eliminated) continue;
+			p.eliminated = true;
+			p.sendAction({ action: "loseGame", reason: "koth_hill" });
+			for (const o of this.players) if (o.id !== p.id) o.sendAction({ action: "playerEliminated", playerId: p.id, username: p.username });
+		}
+		winner.sendAction({ action: "winGame", reason: "koth_hill" });
+		this.isInGame = false;
+		this.blindActive = false;
+		this.disconnectedSlots = [];
+		return true;
+	};
+
 	/** Mark players with 0 lives eliminated; end the game if <=1 remains. */
 	checkGameOver = (): boolean => {
 		if (!this.isInGame) return true;
@@ -544,6 +600,8 @@ class Lobby {
 			const tied = alive.filter((p) => p.score.equalTo(lowest.score));
 			if (tied.length === 1) roundLosers = [lowest];
 		}
+		const kothEv = this.kothResolve(alive, roundLosers);
+		if (kothEv?.shieldedId) roundLosers = roundLosers.filter((p) => p.id !== kothEv.shieldedId);
 		for (const p of roundLosers) p.loseLife("round");
 
 		for (const p of alive) {
@@ -554,6 +612,10 @@ class Lobby {
 		// Send final scores of everyone to everyone
 		for (const p of alive) {
 			for (const o of this.players) if (o.id !== p.id) p.sendAction(this.enemyInfoFor(o, true));
+		}
+		if (kothEv) {
+			this.kothBroadcast(kothEv);
+			if (kothEv.winnerId && this.kothHillWin(kothEv.winnerId)) return;
 		}
 		if (this.checkGameOver()) return;
 		// sit-out players (mid-blind late joiners) were not in this PvP: no endPvP for them

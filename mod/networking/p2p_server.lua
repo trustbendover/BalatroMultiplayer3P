@@ -6,8 +6,10 @@
 
 local Core = {}
 Core.MAX_PLAYERS = 3
-Core.SERVER_VERSION = "0.6.6-MULTIPLAYER3P"
-Core.STARTING_LIVES = { attrition = 4, showdown = 2, survival = 1 }
+Core.SERVER_VERSION = "0.6.7-MULTIPLAYER3P"
+Core.STARTING_LIVES = { attrition = 4, showdown = 2, survival = 1, koth = 3 }
+-- King of the Hill rules module (networking/koth_rules.lua), injected by the loader / tests
+Core.KOTH = Core.KOTH or nil
 Core.EMPTY_LOBBY_TTL = 10 * 60
 
 ---------------------------------------------------------------- scores
@@ -275,10 +277,18 @@ function Server:try_resolve_pvp(L)
 		local tied = filter(alive, function(p) return s_eq(p.score, lowest.score) end)
 		if #tied == 1 then roundLosers = { lowest } end
 	end
+	local koth_ev = self:koth_resolve(L, alive, roundLosers)
+	if koth_ev and koth_ev.shieldedId then
+		roundLosers = filter(roundLosers, function(p) return p.id ~= koth_ev.shieldedId end)
+	end
 	for _, p in ipairs(roundLosers) do self:lose_life(p, "round") end
 	for _, p in ipairs(alive) do p.firstReady, p.pvpDone, p.pvpTimerFailed = false, false, false end
 	for _, p in ipairs(alive) do
 		for _, o in ipairs(L.players) do if o ~= p then sendA(p, self:enemy_info(o, true)) end end
+	end
+	if koth_ev then
+		self:koth_broadcast(L, koth_ev)
+		if koth_ev.winnerId and self:koth_hill_win(L, koth_ev.winnerId) then return end
 	end
 	if self:check_game_over(L) then return end
 	local losers, ids = {}, {}
@@ -287,6 +297,59 @@ function Server:try_resolve_pvp(L)
 	for _, p in ipairs(alive) do
 		sendA(p, { action = "endPvP", lost = losers[p] or false, pvpTimerLost = (#timerLosers > 0) or nil, loserIds = ids })
 	end
+end
+
+---------------------------------------------------------------- King of the Hill
+function Server:koth_active(L) return L.gameMode == "koth" and Core.KOTH ~= nil end
+
+function Server:koth_resolve(L, alive, roundLosers)
+	if not self:koth_active(L) then return nil end
+	local K = Core.KOTH
+	L.koth = L.koth or K.new_state()
+	local cfg = K.config(L.options)
+	local entries = {}
+	for _, p in ipairs(alive) do entries[#entries + 1] = { id = p.id, name = p.username, score = p.score } end
+	local ev = K.resolve(L.koth, entries, #roundLosers == 1 and roundLosers[1].id or nil, s_gt, s_eq, cfg)
+	if ev.lifeBonus and ev.claimedBy then
+		local p = find(alive, function(x) return x.id == ev.claimedBy end)
+		if p and p.lives < cfg.starting_lives then
+			p.lives = p.lives + 1
+			sendA(p, { action = "playerInfo", lives = p.lives })
+		else
+			ev.lifeBonus = false
+		end
+	end
+	return ev
+end
+
+--- Send the King state to everyone (personalised with "you" = their own id).
+function Server:koth_broadcast(L, ev)
+	if not self:koth_active(L) then return end
+	if not ev then
+		L.koth = L.koth or Core.KOTH.new_state()
+		local names = {}
+		for _, p in ipairs(L.players) do names[p.id] = p.username end
+		ev = Core.KOTH.snapshot(L.koth, names, Core.KOTH.config(L.options))
+	end
+	for _, p in ipairs(L.players) do sendA(p, copy(ev, { action = "kothUpdate", you = p.id })) end
+end
+
+--- The King held the hill long enough: everyone else is out.
+function Server:koth_hill_win(L, winnerId)
+	local winner = find(L.players, function(p) return p.id == winnerId end)
+	if not winner then return false end
+	for _, p in ipairs(L.players) do
+		if p ~= winner and not p.eliminated then
+			p.eliminated = true
+			sendA(p, { action = "loseGame", reason = "koth_hill" })
+			for _, o in ipairs(L.players) do
+				if o ~= p then sendA(o, { action = "playerEliminated", playerId = p.id, username = p.username }) end
+			end
+		end
+	end
+	sendA(winner, { action = "winGame", reason = "koth_hill" })
+	L.isInGame, L.blindActive, L.slots = false, false, {}
+	return true
 end
 
 function Server:leave(c)
@@ -347,13 +410,15 @@ function Server:reclaim(L, c, slot)
 	local o = slot.old
 	for _, f in ipairs(SLOT_FIELDS) do c[f] = o[f] end
 	if not c.username or c.username == "Guest" then c.username = o.username end
+	if L.koth and L.koth.kingId == o.id then L.koth.kingId = c.id end
 	table.insert(L.players, math.min(slot.index, #L.players + 1), c)
 	c.lobby = L
 	local missed = c.inPvp and (not L.blindActive or c.blindSeq ~= L.blindSeq)
 	if missed then c.inPvp, c.pvpDone, c.isReady = false, false, false end
 	sendA(c, { action = "rejoinedLobby", code = L.code, type = L.gameMode, reconnectToken = c.reconnectToken })
-	sendA(c, copy(L.options, { action = "lobbyOptions", gamemode = L.gameMode }))
+	sendA(c, copy(copy({ gamemode = L.gameMode }, L.options), { action = "lobbyOptions" }))
 	self:send_resume(L, c, false)
+	self:koth_broadcast(L)
 	if missed then sendA(c, { action = "endPvP", lost = false, loserIds = {} }) end
 	for _, p in ipairs(L.players) do
 		if p ~= c then
@@ -399,8 +464,9 @@ function Server:late_join(L, c)
 	L.players[#L.players + 1] = c
 	c.lobby, c.isReadyLobby = L, true
 	sendA(c, { action = "joinedLobby", code = L.code, type = L.gameMode, reconnectToken = c.reconnectToken })
-	sendA(c, copy(L.options, { action = "lobbyOptions", gamemode = L.gameMode }))
+	sendA(c, copy(copy({ gamemode = L.gameMode }, L.options), { action = "lobbyOptions" }))
 	self:send_resume(L, c, true)
+	self:koth_broadcast(L)
 	for _, p in ipairs(L.players) do
 		if p ~= c then
 			sendA(p, { action = "playerJoined", playerId = c.id, username = c.username })
@@ -429,7 +495,7 @@ function Server:join(L, c)
 	L.players[#L.players + 1] = c
 	c.eliminated, c.lobby, c.isReadyLobby = false, L, false
 	sendA(c, { action = "joinedLobby", code = L.code, type = L.gameMode, reconnectToken = c.reconnectToken })
-	sendA(c, copy(L.options, { action = "lobbyOptions", gamemode = L.gameMode }))
+	sendA(c, copy(copy({ gamemode = L.gameMode }, L.options), { action = "lobbyOptions" }))
 	self:lobby_info(L)
 end
 
@@ -494,6 +560,8 @@ function H.startGame(S, c)
 	S:broadcast(L, { action = "startGame", deck = "c_multiplayer_1", seed = seed, playerCount = #L.players })
 	for _, p in ipairs(L.players) do p.lives, p.eliminated = lives, false end
 	S:broadcast(L, { action = "playerInfo", lives = lives })
+	L.koth = nil
+	S:koth_broadcast(L)
 	for i = 2, #L.players do L.players[i].isReadyLobby = false end
 	for _, p in ipairs(L.players) do
 		for _, o in ipairs(L.players) do if o ~= p then sendA(p, S:enemy_info(o, true)) end end
@@ -563,7 +631,7 @@ function H.lobbyOptions(S, c, a)
 			opts[k] = a[k]
 		end
 	end
-	for i = 2, #L.players do sendA(L.players[i], copy(opts, { action = "lobbyOptions", gamemode = L.gameMode })) end
+	for i = 2, #L.players do sendA(L.players[i], copy(copy({ gamemode = L.gameMode }, opts), { action = "lobbyOptions" })) end
 end
 function H.failRound(S, c)
 	local L = c.lobby

@@ -166,6 +166,8 @@ const startGameAction = (client: Client) => {
 	});
 
 	lobby.setPlayersLives(lives);
+	lobby.koth = null;
+	lobby.kothBroadcast();
 	for (const p of lobby.players.slice(1)) p.isReadyLobby = false;
 	// Let everyone know about every opponent up front
 	for (const p of lobby.players) {
@@ -274,7 +276,7 @@ const setAnteAction = (
 };
 
 // TODO: Fix this
-const serverVersion = "0.6.6-MULTIPLAYER3P";
+const serverVersion = "0.6.7-MULTIPLAYER3P";
 /** Verifies the client version and allows connection if it matches the server's */
 const versionAction = (
 	{ version }: ActionHandlerArgs<ActionVersion>,

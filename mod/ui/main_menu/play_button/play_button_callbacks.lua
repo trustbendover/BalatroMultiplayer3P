@@ -124,6 +124,9 @@ function G.FUNCS.start_lobby(e)
 
 	MP.LOBBY.config.modifier_layers = MP.modifiers_serialize()
 
+	if MP.LOBBY.config.gamemode == "gamemode_mp_koth" then
+		MP.LOBBY.config.starting_lives = 3 -- King of the Hill: 3 lives (crown shield + bounty lives)
+	end
 	if MP.LOBBY.config.gamemode == "gamemode_mp_survival" then
 		MP.LOBBY.config.starting_lives = 1
 		MP.LOBBY.config.disable_live_and_timer_hud = true

@@ -51,7 +51,7 @@ end
 local function player(name, ready)
 	local P = { name = name, msgs = {} }
 	P.b = backend(name)
-	P.r = P2P.new_router({ backend = P.b, Core = Core, json = json, now = now, version = "0.6.6~3P", ready = ready,
+	P.r = P2P.new_router({ backend = P.b, Core = Core, json = json, now = now, version = "0.6.7~3P", ready = ready,
 		push = function(s) P.msgs[#P.msgs + 1] = json.decode(s) end })
 	P.send = function(t) P.r.send(t) end
 	P.last = function(a) for i = #P.msgs, 1, -1 do if P.msgs[i].action == a then return P.msgs[i] end end end
@@ -63,7 +63,7 @@ local all = { A, B, C }
 local function pump(n) for _ = 1, n or 6 do for _, p in ipairs(all) do p.r.update() end end end
 local function ok(c, m) assert(c, m); print("ok: " .. m) end
 
-for _, p in ipairs(all) do p.send({ action = "connect" }); p.send({ action = "username", username = p.name, modHash = "t" }); p.send({ action = "version", version = "0.6.6~3P" }) end
+for _, p in ipairs(all) do p.send({ action = "connect" }); p.send({ action = "username", username = p.name, modHash = "t" }); p.send({ action = "version", version = "0.6.7~3P" }) end
 ok(A.last("connected"), "local core says connected")
 A.send({ action = "createLobby", gameMode = "attrition" }); pump()
 local code = A.last("joinedLobby").code
@@ -124,7 +124,7 @@ ok(C.last("joinedLobby"), "code join still works")
 C.send({ action = "leaveLobby" }); pump()
 NET.launch = { dave = "Balatro.exe +connect_lobby " .. lid }
 local D = player("dave"); all[#all + 1] = D
-D.send({ action = "connect" }); D.send({ action = "username", username = "dave", modHash = "t" }); D.send({ action = "version", version = "0.6.6~3P" })
+D.send({ action = "connect" }); D.send({ action = "username", username = "dave", modHash = "t" }); D.send({ action = "version", version = "0.6.7~3P" })
 pump()
 ok(D.r.mode == "guest" and D.last("joinedLobby"), "game started with +connect_lobby joins automatically")
 -- invite to a non-3P / closed lobby

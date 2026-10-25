@@ -354,6 +354,7 @@ if MP.ENV.mode == "steam" then
 		local P2P = MP.load_mp_file("networking/steam_p2p.lua")
 		local Core = MP.load_mp_file("networking/p2p_server.lua")
 		if not P2P or not Core then error("P2P modules failed to load") end
+		Core.KOTH = MP.load_mp_file("networking/koth_rules.lua") -- King of the Hill gamemode rules
 		local backend, berr = P2P.new_ffi_backend()
 		if not backend then error(berr) end
 		local json = require("json")

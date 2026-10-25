@@ -22,4 +22,8 @@ support them via their own channels.
 updater/update.ps1 + updater/Update.bat (download, SHA256 check, install in update mode),
 ui/main_menu/main_menu.lua. Repository: https://github.com/trustbendover/BalatroMultiplayer3P
 
+0.6.7 (in development): King of the Hill gamemode - gamemodes/koth.lua, lib/koth.lua,
+networking/koth_rules.lua, tests/test_koth*.lua, tests/koth_vectors.json; hooks in
+networking/p2p_server.lua, lib/three_player.lua, ui/main_menu/play_button/*, localization (en-us, nl).
+
 Unofficial fork. Not affiliated with or endorsed by LocalThunk, Playstack, or the Balatro Multiplayer team.
