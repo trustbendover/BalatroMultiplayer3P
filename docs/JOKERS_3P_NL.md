@@ -50,6 +50,17 @@ In King of the Hill kijken ze naar de kroon; in de andere modi naar de levens.
   `j_mp_triumvirate`), geladen in `core.lua`.
 - Teksten: `localization/en-us.lua` en `localization/nl.lua`.
 - Tests: `mod/tests/test_jokers_3p.lua`.
-- **Art = PLACEHOLDER**: eenvoudige pixelkaarten in het Balatro-kaartkader met "3P"-label,
-  gegenereerd met `tools/make_placeholder_jokers.py` (`mod/assets/1x` en `2x`). Vervang de PNG's
-  (71x95 / 142x190) door echte art wanneer die er is; de code hoeft niet te veranderen.
+- **Art**: eigen pixel-art in Balatro-stijl (witte kaart met JOKER-letters, donkere omlijning,
+  beperkt palet), pixel voor pixel getekend op 71x95 en 2x vergroot (nearest-neighbour) naar
+  142x190. Gegenereerd met `tools/joker_art_3p/j3p_cards.py` (`mod/assets/1x` en `2x`).
+  Er zit geen originele Balatro-art in de repo.
+
+## Kaartontwerpen
+
+- Premiejager: een "gezocht"-poster met een gekroonde nar en een stapel gouden munten.
+- Derde Wiel: twee narren met een hartje erboven, een sippe derde nar ervoor.
+- Gier: een gier met narrenmuts op een tak, met een gouden munt in de klauwen.
+- Lachende Derde: twee boze narren die vechten (ster ertussen), een derde nar die erom lacht.
+- Koningsdoder: een nar met een zwaard, de gevallen kroon ligt ervoor.
+- Middenmoot: een nar op het middelste (zilveren) podium tussen goud en brons.
+- Driemanschap: drie gekroonde narren.

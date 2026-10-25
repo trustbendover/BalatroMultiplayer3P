@@ -59,8 +59,8 @@
   KotH crown, so they work on Steam P2P and the TS server and never affect opponents):
   Third Wheel (Common), Vulture (Common), Laughing Third (Uncommon), Kingslayer (Uncommon),
   Bounty Hunter (Uncommon), Middle of the Pack (Uncommon), Triumvirate (Rare).
-  Code: lib/jokers_3p.lua + objects/jokers/threep/, tests/test_jokers_3p.lua. Art is PLACEHOLDER
-  (tools/make_placeholder_jokers.py). Design: docs/JOKERS_3P_NL.md.
+  Code: lib/jokers_3p.lua + objects/jokers/threep/, tests/test_jokers_3p.lua. Art: original Balatro-style
+  pixel art (tools/joker_art_3p/). Design: docs/JOKERS_3P_NL.md.
 - Fix (Steam P2P host): lobbyOptions sent to guests now keep the host's full gamemode key, like the TS server.
 
 ## 0.6.6~3P (Trust Ben Dover)

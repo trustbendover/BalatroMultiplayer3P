@@ -26,6 +26,6 @@ ui/main_menu/main_menu.lua. Repository: https://github.com/trustbendover/Balatro
 networking/koth_rules.lua, tests/test_koth*.lua, tests/koth_vectors.json; hooks in
 networking/p2p_server.lua, lib/three_player.lua, ui/main_menu/play_button/*, localization (en-us, nl).
 0.6.7 (in development): special 3-player jokers - lib/jokers_3p.lua, objects/jokers/threep/*.lua,
-assets/{1x,2x}/j_<key>.png (placeholder art), tests/test_jokers_3p.lua.
+assets/{1x,2x}/j_<key>.png (original pixel art, tools/joker_art_3p/), tests/test_jokers_3p.lua.
 
 Unofficial fork. Not affiliated with or endorsed by LocalThunk, Playstack, or the Balatro Multiplayer team.

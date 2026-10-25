@@ -1,5 +1,5 @@
 -- Balatro Multiplayer 3P: special 3-player joker (see docs/JOKERS_3P_NL.md). GPL-3.0.
--- Art: PLACEHOLDER sprite (assets/*/j_vulture.png) until real art is made.
+-- Art: original Balatro-style pixel art (assets/*/j_vulture.png), drawn by tools/joker_art_3p/j3p_cards.py
 SMODS.Atlas({ key = "vulture", path = "j_vulture.png", px = 71, py = 95 })
 
 SMODS.Joker({
@@ -14,7 +14,7 @@ SMODS.Joker({
 	perishable_compat = true,
 	config = { extra = { money = 8, hands = 0, max_hands = 2 } },
 	mp_include = function(self) return MP.J3P.available() end,
-	mp_credits = { idea = { "Trust Ben Dover" }, art = { "placeholder" }, code = { "Trust Ben Dover" } },
+	mp_credits = { idea = { "Trust Ben Dover" }, art = { "Trust Ben Dover" }, code = { "Trust Ben Dover" } },
 	loc_vars = function(self, info_queue, card)
 		return { vars = { card.ability.extra.money, card.ability.extra.max_hands, card.ability.extra.hands } }
 	end,
