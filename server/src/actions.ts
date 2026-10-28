@@ -5,7 +5,7 @@ export type ActionJoinedLobby = { action: 'joinedLobby'; code: string; type: Gam
 export type ActionRejoinedLobby = { action: 'rejoinedLobby'; code: string; type: GameMode; reconnectToken: string }
 export type ActionEnemyDisconnected = { action: 'enemyDisconnected'; timeout: number; playerId?: string; held?: boolean }
 export type ActionEnemyReconnected = { action: 'enemyReconnected'; playerId?: string }
-export type LobbyPlayer = { id: string; username: string; hash: string; cached: boolean; ready: boolean; isHost: boolean; lives: number; eliminated: boolean }
+export type LobbyPlayer = { id: string; username: string; hash: string; cached: boolean; ready: boolean; isHost: boolean; lives: number; eliminated: boolean; team?: 'A' | 'B' | 'C' | 'D' }
 export type ActionResumeGame = { action: 'resumeGame'; seed?: string; ante: number; lives: number; lateJoin: boolean; eliminated: boolean; blindActive: boolean; inCurrentBlind: boolean }
 export type ActionRejoinFailed = { action: 'rejoinFailed'; message: string }
 export type ActionPlayerJoined = { action: 'playerJoined'; playerId: string; username: string }
@@ -39,6 +39,14 @@ export type ActionStartGame = {
 export type ActionStartBlind = { action: 'startBlind', firstPlayer?: "host" | "guest", firstPlayerId?: string }
 export type ActionWinGame = { action: 'winGame'; reason?: string }
 export type ActionLoseGame = { action: 'loseGame'; reason?: string }
+export type ActionTeamsUpdate = {
+	action: 'teamsUpdate'
+	you: string
+	team: 'A' | 'B' | 'C' | 'D' | null
+	teamSize: number
+	teams: { [team: string]: { members: { id: string; username: string }[]; lives: number } }
+	lastLoser?: 'A' | 'B' | 'C' | 'D' | 'none'
+}
 export type ActionKothUpdate = { action: 'kothUpdate'; you: string } & import('./koth.js').KothEvent
 export type ActionGameInfo = {
 	action: 'gameInfo'
@@ -60,7 +68,7 @@ export type ActionEnemyInfo = {
 	pvpTimerOrder?: "guest" | "host"
 	pvpOrder?: string[]
 }
-export type ActionEndPvP = { action: 'endPvP'; lost: boolean, pvpTimerLost?: boolean, loserIds?: string[], opponentsAway?: boolean }
+export type ActionEndPvP = { action: 'endPvP'; lost: boolean, pvpTimerLost?: boolean, loserIds?: string[], opponentsAway?: boolean, loserTeam?: string }
 export type ActionLobbyOptions = { action: 'lobbyOptions', gamemode: string }
 export type ActionRequestVersion = { action: 'version' }
 export type ActionEnemyLocation = { action: 'enemyLocation'; location: string; playerId?: string }
@@ -94,6 +102,7 @@ export type ActionTcgStartTurn = { action: 'tcgStartTurn', [key: string]: unknow
 export type ActionModded = { action: 'moddedAction', modId: string, modAction: string, from: 'host' | 'guest', target?: 'nemesis' | 'all', [key: string]: unknown }
 export type ActionServerToClient =
 	| ActionKothUpdate
+	| ActionTeamsUpdate
 	| ActionResumeGame
 	| ActionPlayerJoined
 	| ActionRejoinFailed
@@ -290,4 +299,4 @@ export type ActionHandlers = {
 export type ActionHandlerArgs<T extends HandledActions> = Omit<T, 'action'>
 
 // Other types
-export type GameMode = 'attrition' | 'showdown' | 'survival' | 'koth'
+export type GameMode = 'attrition' | 'showdown' | 'survival' | 'koth' | 'teams' | 'duel'

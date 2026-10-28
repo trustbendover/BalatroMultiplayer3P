@@ -150,9 +150,10 @@ async function main() {
     console.log('ok: late join gets lowest lives (2) and lowest ante (3) with the lobby seed')
     await startBlind([A, B, D])
     console.log('ok: late joiner is in the next PvP blind')
-    // full lobby now -> 4th refused
-    const E = await connect('Eve'); E.send({ action: 'joinLobby', code }); assert.match((await E.waitAction('error')).message, /full/)
-    console.log('ok: 4th player refused while game is running')
+    // 2-8 players: a 4th late joiner is welcome too
+    const E = await connect('Eve'); E.send({ action: 'joinLobby', code })
+    await E.waitAction('joinedLobby'); assert.equal((await E.waitAction('resumeGame')).lateJoin, true)
+    console.log('ok: 4th player can late-join a running game (2-8 players)')
     for (const c of [A, B, D, E]) c.sock.destroy()
   }
   {

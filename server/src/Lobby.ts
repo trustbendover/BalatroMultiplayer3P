@@ -2,6 +2,8 @@ import type Client from "./Client.js";
 import { InsaneInt } from "./InsaneInt.js";
 import GameModes from "./GameMode.js";
 import { type KothEvent, type KothState, kothConfig, kothSnapshot, newKothState, resolveKoth } from "./koth.js";
+import { type Team, TEAM_LETTERS, assignTeams, resolveTeams, teamsPlan } from "./teams.js";
+import { pvpLosers } from "./pvpRules.js";
 import type {
 	ActionLobbyInfo,
 	ActionServerToClient,
@@ -19,7 +21,22 @@ const generateUniqueLobbyCode = (): string => {
 	return Lobbies.get(result) ? generateUniqueLobbyCode() : result;
 };
 
-export const MAX_PLAYERS = 3;
+/** Balatro High Stakes: 2 to 8 players. 1v1 Duel is exactly 2; Teams needs 4-8 (even split). */
+export const MAX_PLAYERS = 8;
+export const MIN_PLAYERS = 2;
+export const maxPlayersFor = (mode: GameMode | string): number => (mode === "duel" ? 2 : MAX_PLAYERS);
+/** null when a lobby of n players can start this mode, else the reason. */
+// biome-ignore lint/suspicious/noExplicitAny: lobby options are loosely typed
+export const startError = (mode: GameMode | string, n: number, options: { [k: string]: any } = {}): string | null => {
+	if (n < MIN_PLAYERS) return "Need at least 2 players to start.";
+	if (n > maxPlayersFor(mode)) return "Too many players for this mode.";
+	if (mode === "duel" && n !== 2) return "1v1 Duel needs exactly 2 players.";
+	if (mode === "teams") {
+		const [size, why] = teamsPlan(n, options);
+		if (size === null) return `Teams ${why} (4, 6 or 8 players).`;
+	}
+	return null;
+};
 
 /** Legacy helper: returns the first *other* player (prefers alive ones). */
 export const getEnemy = (client: Client): [Lobby | null, Client | null] => {
@@ -39,8 +56,13 @@ export const getOpponents = (client: Client, aliveOnly = false): Client[] => {
 
 /** Relay an action from client to every other player in the lobby. */
 export const sendToOpponents = (client: Client, action: ActionServerToClient & { playerId?: string }, aliveOnly = false) => {
-	for (const p of getOpponents(client, aliveOnly)) p.sendAction(action)
+	// Teams: nemesis effects (phantoms, asteroid, timers, modded actions...) only hit the other team
+	for (const p of getOpponents(client, aliveOnly)) if (!isTeammate(client, p)) p.sendAction(action)
 }
+
+/** Teams: same team (never true outside a running teams game). */
+export const isTeammate = (a: Client, b: Client): boolean =>
+	a.id !== b.id && a.team !== null && a.team === b.team && a.lobby?.gameMode === "teams"
 
 /** How long to keep a disconnected player's slot reserved (ms) */
 const RECONNECT_GRACE_PERIOD = 60000;
@@ -79,13 +101,19 @@ class Lobby {
 	/** Authoritative seed generated for the current game (null until startGame,
 	 *  or for different-seeds games where each client uses its own). */
 	seed: string | null = null;
-	/** 3P: a blind has started and its PvP result hasn't been resolved yet */
+	/** a blind has started and its PvP result hasn't been resolved yet */
 	blindActive = false;
 	/** King of the Hill: crown state (null unless gameMode === "koth" and a game runs) */
 	koth: KothState | null = null;
-	/** 3P: increments for every started PvP blind */
+	/** Teams: shared lives per team while a teams game runs */
+	teamLives: Partial<Record<Team, number>> | null = null;
+	/** Teams: players per team for the running game */
+	teamSize = 2;
+	/** Players at game start (KotH scaling) */
+	startPlayers = 0;
+	/** increments for every started PvP blind */
 	blindSeq = 0;
-	/** 3P: deletes the lobby if nobody reconnects while it's empty mid-game */
+	/** deletes the lobby if nobody reconnects while it's empty mid-game */
 	emptyTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Attrition is the default game mode
@@ -112,6 +140,9 @@ class Lobby {
 		});
 	}
 
+	/** Seats for this lobby's mode: 2 for 1v1 Duel, else up to 8. */
+	get maxPlayers(): number { return maxPlayersFor(this.gameMode) }
+
 	static get = (code: string) => {
 		return Lobbies.get(code);
 	};
@@ -133,6 +164,8 @@ class Lobby {
 		if (this.isInGame) {
 			// A voluntary leaver mid-game is out; the game continues for the others.
 			this.broadcastAction({ action: "playerLeft", playerId: client.id, username: client.username });
+			client.team = null;
+			this.teamsBroadcast();
 			this.checkGameOver();
 			if (this.isInGame) {
 				this.tryStartBlind();
@@ -191,7 +224,7 @@ class Lobby {
 		if (this.emptyTimer) { clearTimeout(this.emptyTimer); this.emptyTimer = null; }
 		const o = slot.old;
 		const fields = [
-			"lives", "score", "handsLeft", "ante", "skips", "furthestBlind", "isReady", "firstReady",
+			"team", "lives", "score", "handsLeft", "ante", "skips", "furthestBlind", "isReady", "firstReady",
 			"isReadyLobby", "roundLivesBlocker", "timerLivesBlocker", "location", "eliminated", "pvpDone",
 			"pvpTimerFailed", "playedThisBlind", "blindSeq", "inPvp", "sitOut", "modHash", "isCached",
 		] as const;
@@ -215,6 +248,7 @@ class Lobby {
 		newClient.sendAction({ action: "lobbyOptions", gamemode: this.gameMode, ...this.options });
 		this.sendResume(newClient, false);
 		this.kothBroadcast();
+		this.teamsBroadcast();
 		if (missedBlind) newClient.sendAction({ action: "endPvP", lost: false, loserIds: [] });
 
 		for (const p of this.players) {
@@ -277,15 +311,15 @@ class Lobby {
 				const s2 = this.disconnectedSlots.find((s) => s.old === stale);
 				if (s2) { this.reclaimSlot(client, s2); return; }
 			}
-			// 2) Late join if there's a free seat
-			if (this.players.length + this.disconnectedSlots.length < MAX_PLAYERS) {
+			// 2) Late join if there's a free seat (not in Teams: teams are fixed at the start)
+			if (this.gameMode !== "teams" && this.players.length + this.disconnectedSlots.length < this.maxPlayers) {
 				this.lateJoin(client);
 				return;
 			}
 			client.sendAction({ action: "error", message: "Lobby is full." });
 			return;
 		}
-		if (this.players.length >= MAX_PLAYERS) {
+		if (this.players.length >= this.maxPlayers) {
 			client.sendAction({ action: "error", message: "Lobby is full or does not exist." });
 			return;
 		}
@@ -346,6 +380,8 @@ class Lobby {
 		const host = this.host;
 		if (!host) return;
 
+		// Teams: team of every seat (in game: fixed teams; in the lobby: the host's order/size)
+		const teamPreview = this.gameMode === "teams" ? assignTeams(this.players.map((p) => p.id), this.options) : null;
 		const players = this.players.map((p, i) => ({
 			id: p.id,
 			username: p.username,
@@ -355,6 +391,7 @@ class Lobby {
 			isHost: i === 0,
 			lives: p.lives,
 			eliminated: p.eliminated,
+			...(teamPreview ? { team: p.team ?? teamPreview.get(p.id) } : {}),
 		}));
 
 		for (const p of this.players) {
@@ -369,7 +406,7 @@ class Lobby {
 				hostCached: host.isCached,
 				players,
 				you: p.id,
-				maxPlayers: MAX_PLAYERS,
+				maxPlayers: this.maxPlayers,
 				away: this.disconnectedSlots.map((sl) => ({ id: sl.old.id, username: sl.old.username, lives: sl.old.lives })),
 				inGame: this.isInGame,
 			};
@@ -422,6 +459,7 @@ class Lobby {
 			}
 		}
 		for (const p of this.players.slice(1)) p.sendAction({ action: "lobbyOptions", gamemode: this.gameMode, ...options });
+		if (this.gameMode === "teams" && !this.isInGame && ("teams_order" in options || "teams_size" in options)) this.broadcastLobbyInfo();
 	};
 
 	resetPlayers = () => {
@@ -441,7 +479,9 @@ class Lobby {
 			p.inPvp = false;
 			p.sitOut = false;
 			p.ante = 1;
+			p.team = null;
 		}
+		this.teamLives = null;
 		this.tcgBets.clear();
 		this.firstReadyAt = null;
 		this.blindActive = false;
@@ -470,17 +510,92 @@ class Lobby {
 		eliminated: p.eliminated,
 	});
 
+	// ---------------- Teams (2v2 ... 4v4, 2v2v2, 2v2v2v2) ----------------
+	teamsActive = () => this.gameMode === "teams" && this.teamLives !== null;
+
+	/** Fix the teams at game start (exactly 4 players). */
+	teamsStart = (lives: number) => {
+		if (this.gameMode !== "teams") return;
+		const teams = assignTeams(this.players.map((p) => p.id), this.options);
+		const [size, count] = teamsPlan(this.players.length, this.options);
+		if (!teams || size === null) return;
+		for (const p of this.players) p.team = teams.get(p.id) ?? null;
+		this.teamSize = size;
+		this.teamLives = {};
+		for (const t of TEAM_LETTERS.slice(0, count as number)) this.teamLives[t] = lives;
+		this.teamsBroadcast();
+	};
+
+	/** Everyone on a team: connected players and held (away) seats. */
+	teamMembers = (team: Team): Client[] => [
+		...this.players.filter((p) => p.team === team),
+		...this.disconnectedSlots.map((s) => s.old).filter((o) => o.team === team),
+	];
+
+	/** Set a team's shared lives and sync them to everyone. */
+	setTeamLives = (team: Team, lives: number) => {
+		if (!this.teamLives) return;
+		this.teamLives[team] = lives;
+		for (const m of this.teamMembers(team)) m.lives = lives;
+		for (const p of this.players) {
+			if (p.team !== team) continue;
+			p.sendAction({ action: "playerInfo", lives });
+			const info = this.enemyInfoFor(p, true);
+			for (const o of this.players) if (o.id !== p.id) o.sendAction(info);
+		}
+	};
+
+	/** Life loss outside the PvP resolution (timers, failed rounds). In Teams the whole team
+	 *  loses one life, once per cause per round (the teammates' blockers are set too). */
+	loseLifeFor = (client: Client, cause: "round" | "timer" = "round") => {
+		if (!this.teamsActive() || !client.team) return client.loseLife(cause);
+		const blocked = cause === "timer" ? client.timerLivesBlocker : client.roundLivesBlocker;
+		if (blocked) return;
+		for (const m of this.teamMembers(client.team)) {
+			if (cause === "timer") m.timerLivesBlocker = true; else m.roundLivesBlocker = true;
+		}
+		this.setTeamLives(client.team, Math.max(0, (this.teamLives?.[client.team] ?? client.lives) - 1));
+	};
+
+	/** Tell everyone the teams, team lives and (optionally) which team lost the last PvP. */
+	teamsBroadcast = (lastLoser?: Team | null) => {
+		if (!this.teamsActive() || !this.teamLives) return;
+		const all = [...this.players, ...this.disconnectedSlots.map((s) => s.old)];
+		const teams: Partial<Record<Team, { members: { id: string; username: string }[]; lives: number }>> = {};
+		for (const [t, lives] of Object.entries(this.teamLives) as [Team, number][]) teams[t] = { members: [], lives };
+		for (const p of all) if (p.team && teams[p.team]) teams[p.team]?.members.push({ id: p.id, username: p.username });
+		for (const p of this.players) {
+			p.sendAction({
+				action: "teamsUpdate",
+				you: p.id,
+				team: p.team,
+				teamSize: this.teamSize,
+				teams,
+				...(lastLoser !== undefined ? { lastLoser: lastLoser ?? "none" } : {}),
+			});
+		}
+	};
+
+	/** Teams PvP: the single lowest team sum loses a team life. Returns the losing team (or null). */
+	teamsResolve = (alive: Client[]): Team | null => {
+		const present: Partial<Record<Team, InsaneInt[]>> = {};
+		for (const p of alive) if (p.team) (present[p.team] ??= []).push(p.score);
+		const loser = resolveTeams(present, this.teamSize);
+		if (loser && this.teamLives) this.setTeamLives(loser, Math.max(0, (this.teamLives[loser] ?? 1) - 1));
+		return loser;
+	};
+
 	// ---------------- King of the Hill ----------------
 	kothActive = () => this.gameMode === "koth";
 
 	kothResolve = (alive: Client[], roundLosers: Client[]): KothEvent | null => {
 		if (!this.kothActive()) return null;
 		if (!this.koth) this.koth = newKothState();
-		const cfg = kothConfig(this.options);
+		const cfg = kothConfig(this.options, this.startPlayers || undefined);
 		const ev = resolveKoth(
 			this.koth,
 			alive.map((p) => ({ id: p.id, name: p.username, score: p.score })),
-			roundLosers.length === 1 ? roundLosers[0].id : null,
+			roundLosers.map((p) => p.id),
 			(a, b) => a.greaterThan(b),
 			(a, b) => a.equalTo(b),
 			cfg,
@@ -499,7 +614,7 @@ class Lobby {
 	kothBroadcast = (ev?: KothEvent) => {
 		if (!this.kothActive()) return;
 		if (!this.koth) this.koth = newKothState();
-		const e = ev ?? kothSnapshot(this.koth, new Map(this.players.map((p) => [p.id, p.username])), kothConfig(this.options));
+		const e = ev ?? kothSnapshot(this.koth, new Map(this.players.map((p) => [p.id, p.username])), kothConfig(this.options, this.startPlayers || undefined));
 		for (const p of this.players) p.sendAction({ ...e, action: "kothUpdate", you: p.id });
 	};
 
@@ -533,6 +648,18 @@ class Lobby {
 			}
 		}
 		const alive = this.alivePlayers();
+		if (this.teamsActive()) {
+			// Teams: the game ends when only one team has anyone left (connected or seat held)
+			const left = new Set([...alive, ...this.awayAlive().map((s) => s.old)].map((p) => p.team));
+			if (left.size <= 1) {
+				for (const p of alive) p.sendAction({ action: "winGame", reason: "teams" });
+				this.isInGame = false;
+				this.blindActive = false;
+				this.disconnectedSlots = [];
+				return true;
+			}
+			return false;
+		}
 		// Away players with lives left still count: their seat is held
 		if (alive.length + this.awayAlive().length <= 1) {
 			alive[0]?.sendAction({ action: "winGame" });
@@ -570,9 +697,10 @@ class Lobby {
 	};
 
 	/**
-	 * 3P PvP resolution: once every alive player is out of hands (or failed the
-	 * PvP timer), the single lowest score loses a life. A tie for lowest costs
-	 * nobody a life. Players at 0 lives are eliminated; last one standing wins.
+	 * PvP resolution: once every alive player is out of hands (or failed the
+	 * PvP timer), the single lowest score loses a life (6-8 players: the bottom two,
+	 * see pvpRules.ts). Ties at the cut cost nobody a life. Players at 0 lives are
+	 * eliminated; last one standing wins. Teams mode: tryResolveTeamsPvP.
 	 */
 	tryResolvePvP = () => {
 		if (!this.isInGame || !this.blindActive) return;
@@ -592,13 +720,16 @@ class Lobby {
 			return;
 		}
 
+		if (this.teamsActive()) {
+			this.tryResolveTeamsPvP(alive);
+			return;
+		}
 		const timerLosers = alive.filter((p) => p.pvpTimerFailed);
 		let roundLosers: Client[] = [];
 		if (timerLosers.length === 0) {
-			let lowest = alive[0];
-			for (const p of alive) if (p.score.lessThan(lowest.score)) lowest = p;
-			const tied = alive.filter((p) => p.score.equalTo(lowest.score));
-			if (tied.length === 1) roundLosers = [lowest];
+			// 2-5 players: the single lowest score; 6-8: the bottom two (pvpRules.ts)
+			const ids = new Set(pvpLosers(alive.map((p) => ({ id: p.id, score: p.score })), (a, b) => !a.greaterThan(b)));
+			roundLosers = alive.filter((p) => ids.has(p.id));
 		}
 		const kothEv = this.kothResolve(alive, roundLosers);
 		if (kothEv?.shieldedId) roundLosers = roundLosers.filter((p) => p.id !== kothEv.shieldedId);
@@ -625,6 +756,40 @@ class Lobby {
 				lost: roundLosers.includes(p) || timerLosers.includes(p),
 				...(timerLosers.length ? { pvpTimerLost: true } : {}),
 				loserIds: [...roundLosers, ...timerLosers].map((l) => l.id),
+			});
+		}
+	};
+
+	/** Teams PvP resolution (called by tryResolvePvP once everyone present is done). */
+	private tryResolveTeamsPvP = (alive: Client[]) => {
+		const teamsPresent = new Set(alive.map((p) => p.team));
+		const timerLosers = alive.filter((p) => p.pvpTimerFailed);
+		let loser: Team | null = null;
+		// Timer failures already cost their team a life (failPvPTimer); otherwise compare team sums
+		if (timerLosers.length === 0 && teamsPresent.size >= 2) loser = this.teamsResolve(alive);
+		for (const p of alive) {
+			p.firstReady = false;
+			p.pvpDone = false;
+			p.pvpTimerFailed = false;
+		}
+		for (const p of alive) {
+			for (const o of this.players) if (o.id !== p.id) p.sendAction(this.enemyInfoFor(o, true));
+		}
+		this.teamsBroadcast(loser);
+		if (this.checkGameOver()) return;
+		const timerTeams = new Set(timerLosers.map((p) => p.team));
+		const loserIds = [
+			...(loser ? this.teamMembers(loser) : []),
+			...this.players.filter((p) => p.team && timerTeams.has(p.team)),
+		].map((p) => p.id);
+		for (const p of alive) {
+			p.sendAction({
+				action: "endPvP",
+				lost: (loser !== null && p.team === loser) || (p.team !== null && timerTeams.has(p.team)),
+				...(timerLosers.length ? { pvpTimerLost: true } : {}),
+				...(teamsPresent.size < 2 ? { opponentsAway: true } : {}),
+				loserIds: [...new Set(loserIds)],
+				...(loser ? { loserTeam: loser } : {}),
 			});
 		}
 	};

@@ -1,4 +1,4 @@
-// Balatro Multiplayer 3P: "King of the Hill / Bounty" rules. Same rules as
+// Balatro High Stakes: "King of the Hill / Bounty" rules. Same rules as
 // mod/networking/koth_rules.lua (in-game Steam P2P host); both are checked against
 // test/koth_vectors.json. GPL-3.0. Designed for 3 players (works with 2 left).
 //
@@ -33,9 +33,20 @@ export type KothEvent = {
 
 export const KOTH_DEFAULTS: KothConfig = { holdTarget: 4, bountyMoney: 4, lifeBounty: 3, startingLives: 3 };
 
-// biome-ignore lint/suspicious/noExplicitAny: lobby options are loosely typed
-export const kothConfig = (options: { [k: string]: any } = {}): KothConfig => {
+/** Defaults for this many players at the start (undefined = 3, the original tuning):
+ *  hold target 5 (2 players) / 4 (3-4) / 3 (5-8); life bounty 3 (2-4) / 2 (5-8). */
+export const kothScaled = (players?: number): KothConfig => {
+	const n = players ?? 3;
 	const c = { ...KOTH_DEFAULTS };
+	if (n <= 2) c.holdTarget = 5;
+	else if (n >= 5) c.holdTarget = 3;
+	if (n >= 5) c.lifeBounty = 2;
+	return c;
+};
+
+// biome-ignore lint/suspicious/noExplicitAny: lobby options are loosely typed
+export const kothConfig = (options: { [k: string]: any } = {}, players?: number): KothConfig => {
+	const c = kothScaled(players);
 	const h = Number(options.koth_hold_target);
 	if (Number.isFinite(h) && h >= 2 && h <= 10) c.holdTarget = Math.floor(h);
 	const m = Number(options.koth_bounty_money);
@@ -50,7 +61,7 @@ export const newKothState = (): KothState => ({ kingId: null, streak: 0 });
 export function resolveKoth<S>(
 	st: KothState,
 	entries: KothEntry<S>[],
-	roundLoserId: string | null,
+	roundLosers: string | string[] | null,
 	gt: (a: S, b: S) => boolean,
 	eq: (a: S, b: S) => boolean,
 	cfg: KothConfig = KOTH_DEFAULTS,
@@ -67,7 +78,8 @@ export function resolveKoth<S>(
 	}
 	if (tied !== 1) top = undefined;
 
-	const kingLowest = !!king && roundLoserId === king.id;
+	const losing = new Set(Array.isArray(roundLosers) ? roundLosers : roundLosers ? [roundLosers] : []);
+	const kingLowest = !!king && losing.has(king.id);
 	if (kingLowest && king) ev.shieldedId = king.id;
 
 	if (king && top === king) {

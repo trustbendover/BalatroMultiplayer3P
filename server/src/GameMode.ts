@@ -39,6 +39,20 @@ const GameModes: {
 			return { boss: "bl_pvp" };
 		},
 	},
+	duel: {
+		// 1v1 Duel: exactly 2 players, classic Attrition
+		startingLives: 4,
+		getBlindFromAnte: (ante, options) => {
+			return { boss: "bl_pvp" };
+		},
+	},
+	teams: {
+		// Teams (4-8 players: 2v2, 3v3, 4v4, 2v2v2, 2v2v2v2): attrition blinds, shared team lives (teams.ts)
+		startingLives: 4,
+		getBlindFromAnte: (ante, options) => {
+			return { boss: "bl_pvp" };
+		},
+	},
 	survival: {
 		startingLives: 1,
 		getBlindFromAnte: (ante, options) => {

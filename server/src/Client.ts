@@ -64,6 +64,8 @@ class Client {
 	blindSeq = 0
 	/** 3P: joined/restarted mid-blind, excluded from the running PvP */
 	sitOut = false
+	/** 2v2 Teams: "A" | "B" while a teams game runs, else null */
+	team: "A" | "B" | "C" | "D" | null = null
 
 	location = 'loc_selecting'
 

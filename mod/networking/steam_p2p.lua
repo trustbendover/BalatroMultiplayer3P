@@ -1,11 +1,11 @@
--- Balatro Multiplayer 3P fork: Steam peer-to-peer transport (GPL-3.0, see FORK_NOTICE.md)
+-- Balatro High Stakes (fork of Balatro Multiplayer): Steam peer-to-peer transport (GPL-3.0, see FORK_NOTICE.md)
 --
 -- Balatro's bundled luasteam.dll has no networking/matchmaking bindings, so this
 -- talks to the steam_api64.dll that ships with Balatro through LuaJIT FFI (flat API).
 -- Appid = Balatro's own (whatever SteamAPI was initialised with by the game).
 --
 -- Roles:
---   host  : runs the full 3P server logic in-process (networking/p2p_server.lua),
+--   host  : runs the full server logic (2-8 players) in-process (networking/p2p_server.lua),
 --           publishes a Steam lobby tagged with the lobby code, accepts peers.
 --   guest : finds the Steam lobby by code, joins it and relays the normal JSON
 --           actions to the host over ISteamNetworkingMessages.
@@ -20,7 +20,10 @@ local M = {}
 M.CHANNEL = 7
 M.HEARTBEAT = 3
 M.TIMEOUT = 20
-M.LOBBY_KEY = "mp3p_code"
+M.LOBBY_KEY = "mp3p_code" -- protocol key, kept for compatibility with earlier builds
+-- Steam lobby member limit. Star topology: every guest talks only to the host, which runs the
+-- server core and relays, so traffic grows linearly with players (8 is light).
+M.MAX_MEMBERS = 8
 M.SEARCH_TRIES = 4
 M.SEARCH_DELAY = 3
 M.INVITE_TRIES = 4
@@ -123,7 +126,7 @@ function M.new_ffi_backend()
 	function B.my_id() return id2s(lib.SteamAPI_ISteamUser_GetSteamID(user)) end
 	-- LobbyCreated_t (513): int32 result; [pad]; uint64 lobby
 	function B.create_lobby(cb)
-		await(lib.SteamAPI_ISteamMatchmaking_CreateLobby(mm, 2 --[[public]], 3), 16, 513, function(buf)
+		await(lib.SteamAPI_ISteamMatchmaking_CreateLobby(mm, 2 --[[public]], M.MAX_MEMBERS), 16, 513, function(buf)
 			if not buf then return cb(nil, "CreateLobby failed") end
 			local res = ffi.cast("int32_t*", buf)[0]
 			if res ~= 1 then return cb(nil, "CreateLobby result " .. res) end

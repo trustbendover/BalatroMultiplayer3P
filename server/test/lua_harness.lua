@@ -3,6 +3,8 @@ package.path = arg[1] .. "/?.lua;" .. package.path
 local json = require("dkjson")
 local Core = dofile(arg[2])
 Core.KOTH = dofile((arg[2]:gsub("p2p_server%.lua$", "koth_rules.lua")))
+Core.TEAMS = dofile((arg[2]:gsub("p2p_server%.lua$", "teams_rules.lua")))
+Core.PVP = dofile((arg[2]:gsub("p2p_server%.lua$", "pvp_rules.lua")))
 math.randomseed(os.time())
 local S = Core.new({ log = function(m) io.stderr:write(m .. "\n") end })
 local conns = {}

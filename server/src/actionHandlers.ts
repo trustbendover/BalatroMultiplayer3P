@@ -1,7 +1,7 @@
 import type Client from "./Client.js";
 import GameModes from "./GameMode.js";
 import { InsaneInt } from "./InsaneInt.js";
-import Lobby, { baseName, getEnemy, getOpponents, sendToOpponents } from "./Lobby.js";
+import Lobby, { baseName, getEnemy, getOpponents, sendToOpponents, startError } from "./Lobby.js";
 import type {
 	ActionCreateLobby,
 	ActionEatPizza,
@@ -144,10 +144,12 @@ const keepAliveAction = (client: Client) => {
 const startGameAction = (client: Client) => {
 	const lobby = client.lobby;
 	if (!lobby || lobby.host?.id !== client.id) return;
-	if (lobby.players.length < 2) {
-		client.sendAction({ action: "error", message: "Need at least 2 players to start." });
+	const why = startError(lobby.gameMode, lobby.players.length, lobby.options);
+	if (why) {
+		client.sendAction({ action: "error", message: why });
 		return;
 	}
+	lobby.startPlayers = lobby.players.length;
 
 	const lives = lobby.options.starting_lives
 		? Number.parseInt(lobby.options.starting_lives)
@@ -168,6 +170,7 @@ const startGameAction = (client: Client) => {
 	lobby.setPlayersLives(lives);
 	lobby.koth = null;
 	lobby.kothBroadcast();
+	lobby.teamsStart(lives);
 	for (const p of lobby.players.slice(1)) p.isReadyLobby = false;
 	// Let everyone know about every opponent up front
 	for (const p of lobby.players) {
@@ -231,7 +234,7 @@ const playHandAction = (
 
 const failPvPTimerAction = (client: Client) => {
 	const lobby = client.lobby;
-	client.loseLife('timer');
+	if (lobby) lobby.loseLifeFor(client, 'timer'); else client.loseLife('timer');
 	if (!lobby) return;
 	client.pvpDone = true;
 	client.pvpTimerFailed = true;
@@ -262,7 +265,7 @@ const lobbyOptionsAction = (
 const failRoundAction = (client: Client) => {
 	const lobby = client.lobby;
 	if (!lobby) return;
-	if (lobby.options.death_on_round_loss) client.loseLife('round');
+	if (lobby.options.death_on_round_loss) lobby.loseLifeFor(client, 'round');
 	// 3P fork: survival-specific furthest-blind logic is not supported; any mode
 	// uses last-one-standing.
 	lobby.checkGameOver();
@@ -348,7 +351,7 @@ const skipAction = (
 	const lobby = client.lobby;
 	if (!lobby) return;
 	const info = lobby.enemyInfoFor(client, true);
-	sendToOpponents(client, info);
+	for (const o of getOpponents(client)) o.sendAction(info); // teammates see skips too
 };
 
 const sendPhantomAction = (
@@ -539,7 +542,7 @@ const pauseAnteTimerAction = (
 
 const failTimerAction = (client: Client) => {
 	const lobby = client.lobby;
-	client.loseLife('timer');
+	if (lobby) lobby.loseLifeFor(client, 'timer'); else client.loseLife('timer');
 	if (!lobby) return;
 	lobby.checkGameOver();
 };

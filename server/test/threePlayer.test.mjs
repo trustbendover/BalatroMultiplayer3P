@@ -1,4 +1,4 @@
-// 3-player integration test: spins up the built server and drives 3 fake TCP clients.
+// 3-player integration test (Balatro High Stakes supports 2-8; see multiPlayer.test.mjs): spins up the built server and drives 3 fake TCP clients.
 import { spawn } from 'node:child_process'
 import net from 'node:net'
 import assert from 'node:assert/strict'
@@ -53,9 +53,9 @@ async function main() {
   A.send({ action: 'lobbyOptions', starting_lives: '2' })
   B.send({ action: 'joinLobby', code }); await B.waitAction('joinedLobby')
   C.send({ action: 'joinLobby', code }); await C.waitAction('joinedLobby')
-  D.send({ action: 'joinLobby', code })
-  const err = await D.waitAction('error'); assert.match(err.message, /full/); console.log('ok: 4th player rejected')
-  await sleep(200)
+  D.send({ action: 'joinLobby', code }); await D.waitAction('joinedLobby')
+  D.send({ action: 'leaveLobby' }); console.log('ok: a 4th player may join (2-8 players) and leave again')
+  await sleep(300)
   const infoA = A.msgs.filter((m) => m.action === 'lobbyInfo').pop()
   assert.equal(infoA.players.length, 3); assert.equal(infoA.isHost, true)
   console.log('ok: lobbyInfo lists 3 players')

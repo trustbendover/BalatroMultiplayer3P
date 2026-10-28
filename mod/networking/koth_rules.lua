@@ -1,7 +1,7 @@
--- Balatro Multiplayer 3P: "King of the Hill / Bounty" rules (pure Lua, no LOVE/Balatro deps).
+-- Balatro High Stakes: "King of the Hill / Bounty" rules (pure Lua, no LOVE/Balatro deps).
 -- Used by the in-game Steam P2P host (networking/p2p_server.lua). The TypeScript server has the
 -- same rules in server/src/koth.ts; both are checked against tests/koth_vectors.json.
--- GPL-3.0. Designed for 3 players (works with 2 left).
+-- GPL-3.0. 2 to 8 players; the defaults scale with the number of players at the start.
 --
 -- Rules per PvP blind (normal attrition: the single lowest score loses a life):
 --  * The single highest score becomes King (or stays King: +1 streak). Bounty = King's streak.
@@ -9,14 +9,26 @@
 --    $ (bounty_money x bounty), and +1 life (max starting lives) when bounty >= life_bounty.
 --  * Crown shield: if the King has the single lowest score, he loses the crown instead of a life.
 --  * Hold the Hill: a King whose streak reaches hold_target wins the match. Last one standing also wins.
+--  * Scaling (players at the start): hold target 5 (2 players), 4 (3-4), 3 (5-8): the crown is
+--    harder to keep with more rivals. Life bounty at bounty 3 (2-4 players), 2 (5-8).
+--    With 6-8 players two players can lose a life per PvP; a King among them is shielded.
 local K = {}
 
 K.DEFAULTS = { hold_target = 4, bounty_money = 4, life_bounty = 3, starting_lives = 3 }
 
-function K.config(options)
-	options = options or {}
+--- Defaults for this many players (nil = 3, the original tuning).
+function K.scaled(players)
+	local n = tonumber(players) or 3
 	local c = {}
 	for k, v in pairs(K.DEFAULTS) do c[k] = v end
+	if n <= 2 then c.hold_target = 5 elseif n >= 5 then c.hold_target = 3 end
+	if n >= 5 then c.life_bounty = 2 end
+	return c
+end
+
+function K.config(options, players)
+	options = options or {}
+	local c = K.scaled(players)
 	local h = tonumber(options.koth_hold_target)
 	if h and h >= 2 and h <= 10 then c.hold_target = math.floor(h) end
 	local m = tonumber(options.koth_bounty_money)
@@ -29,10 +41,16 @@ end
 function K.new_state() return { kingId = nil, streak = 0 } end
 
 --- entries: list of { id, name, score } for everyone who played this PvP.
---- gt(a, b) / eq(a, b) compare scores. roundLoserId: id of the single lowest scorer (or nil).
+--- gt(a, b) / eq(a, b) compare scores. roundLosers: id (or list of ids) losing a life this PvP.
 --- Mutates st and returns an event table (sent to clients as action "kothUpdate").
-function K.resolve(st, entries, roundLoserId, gt, eq, cfg)
+function K.resolve(st, entries, roundLosers, gt, eq, cfg)
 	cfg = cfg or K.config()
+	local losing = {}
+	if type(roundLosers) == "table" then
+		for _, id in ipairs(roundLosers) do losing[id] = true end
+	elseif roundLosers ~= nil then
+		losing[roundLosers] = true
+	end
 	local ev = { holdTarget = cfg.hold_target, reward = 0, lifeBonus = false }
 	local king
 	for _, e in ipairs(entries) do if e.id == st.kingId then king = e end end
@@ -45,7 +63,7 @@ function K.resolve(st, entries, roundLoserId, gt, eq, cfg)
 	end
 	if tied ~= 1 then top = nil end
 
-	local king_lowest = king ~= nil and roundLoserId == king.id
+	local king_lowest = king ~= nil and losing[king.id] == true
 	if king_lowest then ev.shieldedId = king.id end
 
 	if king and top == king then

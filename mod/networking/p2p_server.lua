@@ -1,13 +1,31 @@
--- Balatro Multiplayer 3P: in-process lobby/game server (Lua port of the 3P
--- TypeScript server: server/src/Lobby.ts + actionHandlers.ts).
+-- Balatro High Stakes: in-process lobby/game server (Lua port of the TypeScript
+-- server: server/src/Lobby.ts + actionHandlers.ts). 2 to 8 players.
 -- Used by Steam P2P mode, where the lobby host runs this inside their game.
 -- Pure Lua (no LOVE / Balatro dependencies) so it can be unit-tested.
 -- GPL-3.0, based on Balatro-Multiplayer/BalatroMultiplayerAPI-Server.
 
 local Core = {}
-Core.MAX_PLAYERS = 3
+-- Balatro High Stakes: 2 to 8 players. 1v1 Duel is exactly 2, Teams needs 4-8 (even split).
+Core.MAX_PLAYERS = 8
+Core.MIN_PLAYERS = 2
+function Core.max_players(mode) return mode == "duel" and 2 or Core.MAX_PLAYERS end
+--- nil when the lobby can start, else the reason (sent to the host as an error).
+function Core.start_error(mode, n, options)
+	if n < Core.MIN_PLAYERS then return "Need at least 2 players to start." end
+	if n > Core.max_players(mode) then return "Too many players for this mode." end
+	if mode == "duel" and n ~= 2 then return "1v1 Duel needs exactly 2 players." end
+	if mode == "teams" then
+		local size, why = Core.TEAMS and Core.TEAMS.plan(n, options)
+		if not size then return "Teams " .. tostring(why or "unavailable") .. " (4, 6 or 8 players)." end
+	end
+	return nil
+end
 Core.SERVER_VERSION = "0.6.7-MULTIPLAYER3P"
-Core.STARTING_LIVES = { attrition = 4, showdown = 2, survival = 1, koth = 3 }
+Core.STARTING_LIVES = { attrition = 4, showdown = 2, survival = 1, koth = 3, teams = 4, duel = 4 }
+-- free-for-all life-loss rule for 2-8 players (networking/pvp_rules.lua), injected by the loader / tests
+Core.PVP = Core.PVP or nil
+-- Teams rules module (networking/teams_rules.lua), injected by the loader / tests
+Core.TEAMS = Core.TEAMS or nil
 -- King of the Hill rules module (networking/koth_rules.lua), injected by the loader / tests
 Core.KOTH = Core.KOTH or nil
 Core.EMPTY_LOBBY_TTL = 10 * 60
@@ -106,7 +124,7 @@ function Server:connect(send, close)
 		ante = 1, skips = 0, furthestBlind = 0,
 		roundLivesBlocker = false, timerLivesBlocker = false,
 		eliminated = false, pvpDone = false, pvpTimerFailed = false,
-		inPvp = false, blindSeq = 0, sitOut = false,
+		inPvp = false, blindSeq = 0, sitOut = false, team = nil,
 		location = "loc_selecting", isCached = true,
 	}
 	c.send({ action = "connected" })
@@ -166,7 +184,16 @@ function Server:away_alive(L) return filter(L.slots, function(s) return not s.ol
 function Server:participants(L) return filter(self:alive(L), function(p) return not p.sitOut end) end
 
 function Server:broadcast(L, t) for _, p in ipairs(L.players) do sendA(p, t) end end
+--- Teams: same team (never true outside a running teams game).
+function Server:is_teammate(a, b)
+	return a ~= b and a.team ~= nil and a.team == b.team and a.lobby ~= nil and a.lobby.gameMode == "teams"
+end
+--- Nemesis-style relays. In Teams they only reach the other teams.
 function Server:to_opponents(c, t)
+	if not c.lobby then return end
+	for _, p in ipairs(c.lobby.players) do if p ~= c and not self:is_teammate(c, p) then sendA(p, t) end end
+end
+function Server:to_others(c, t)
 	if not c.lobby then return end
 	for _, p in ipairs(c.lobby.players) do if p ~= c then sendA(p, t) end end
 end
@@ -183,15 +210,21 @@ function Server:lobby_info(L)
 	local host = L.players[1]
 	if not host then return end
 	local players = {}
+	local preview = nil
+	if L.gameMode == "teams" and Core.TEAMS then
+		local ids = {}
+		for i, p in ipairs(L.players) do ids[i] = p.id end
+		preview = Core.TEAMS.assign(ids, L.options)
+	end
 	for i, p in ipairs(L.players) do
 		players[i] = { id = p.id, username = p.username, hash = p.modHash, cached = p.isCached, ready = p.isReadyLobby,
-			isHost = i == 1, lives = p.lives, eliminated = p.eliminated }
+			isHost = i == 1, lives = p.lives, eliminated = p.eliminated, team = preview and (p.team or preview[p.id]) or nil }
 	end
 	local away = {}
 	for i, s in ipairs(L.slots) do away[i] = { id = s.old.id, username = s.old.username, lives = s.old.lives } end
 	for _, p in ipairs(L.players) do
 		local a = { action = "lobbyInfo", host = host.username, hostHash = host.modHash, isHost = p == host,
-			hostCached = host.isCached, players = players, you = p.id, maxPlayers = Core.MAX_PLAYERS, away = away, inGame = L.isInGame }
+			hostCached = host.isCached, players = players, you = p.id, maxPlayers = Core.max_players(L.gameMode), away = away, inGame = L.isInGame }
 		local g = L.players[2]
 		if g then
 			a.guest, a.guestHash, a.guestCached = g.username, g.modHash, g.isCached
@@ -210,8 +243,10 @@ function Server:reset_players(L)
 		self:set_location(p, "Blind Select")
 		p.furthestBlind, p.skips, p.score, p.handsLeft = 0, 0, ZERO(), 4
 		p.pvpDone, p.pvpTimerFailed, p.playedThisBlind, p.inPvp, p.sitOut, p.ante = false, false, false, false, false, 1
+		p.team = nil
 	end
 	L.firstReadyAt, L.blindActive, L.slots = nil, false, {}
+	L.teamLives = nil
 end
 
 function Server:destroy(L)
@@ -231,6 +266,20 @@ function Server:check_game_over(L)
 		end
 	end
 	local alive = self:alive(L)
+	if self:teams_active(L) then
+		-- Teams: the game ends when only one team has anyone left (connected or seat held)
+		local left, n = {}, 0
+		for _, p in ipairs(alive) do if p.team and not left[p.team] then left[p.team] = true; n = n + 1 end end
+		for _, sl in ipairs(self:away_alive(L)) do
+			if sl.old.team and not left[sl.old.team] then left[sl.old.team] = true; n = n + 1 end
+		end
+		if n <= 1 then
+			for _, p in ipairs(alive) do sendA(p, { action = "winGame", reason = "teams" }) end
+			L.isInGame, L.blindActive, L.slots = false, false, {}
+			return true
+		end
+		return false
+	end
 	if #alive + #self:away_alive(L) <= 1 then
 		if alive[1] then sendA(alive[1], { action = "winGame" }) end
 		L.isInGame, L.blindActive, L.slots = false, false, {}
@@ -269,13 +318,17 @@ function Server:try_resolve_pvp(L)
 		sendA(p, { action = "endPvP", lost = false, loserIds = {}, opponentsAway = true })
 		return
 	end
+	if self:teams_active(L) then return self:resolve_teams_pvp(L, alive) end
 	local timerLosers = filter(alive, function(p) return p.pvpTimerFailed end)
 	local roundLosers = {}
 	if #timerLosers == 0 then
-		local lowest = alive[1]
-		for _, p in ipairs(alive) do if s_lt(p.score, lowest.score) then lowest = p end end
-		local tied = filter(alive, function(p) return s_eq(p.score, lowest.score) end)
-		if #tied == 1 then roundLosers = { lowest } end
+		-- 2-5 players: the single lowest score; 6-8: the bottom two (networking/pvp_rules.lua)
+		local entries = {}
+		for i, p in ipairs(alive) do entries[i] = { id = p.id, score = p.score } end
+		local ids = Core.PVP and Core.PVP.losers(entries, function(a, b) return not s_gt(a, b) end) or {}
+		local lose = {}
+		for _, id in ipairs(ids) do lose[id] = true end
+		roundLosers = filter(alive, function(p) return lose[p.id] end)
 	end
 	local koth_ev = self:koth_resolve(L, alive, roundLosers)
 	if koth_ev and koth_ev.shieldedId then
@@ -299,6 +352,106 @@ function Server:try_resolve_pvp(L)
 	end
 end
 
+---------------------------------------------------------------- Teams (2v2 ... 4v4, 2v2v2, 2v2v2v2)
+function Server:teams_active(L) return L.gameMode == "teams" and L.teamLives ~= nil and Core.TEAMS ~= nil end
+
+--- Fix the teams at game start (exactly 4 players).
+function Server:teams_start(L, lives)
+	if L.gameMode ~= "teams" or not Core.TEAMS then return end
+	local ids = {}
+	for i, p in ipairs(L.players) do ids[i] = p.id end
+	local t, size, count = Core.TEAMS.assign(ids, L.options)
+	if not t then return end
+	for _, p in ipairs(L.players) do p.team = t[p.id] end
+	L.teamSize, L.teamLives = size, {}
+	for i = 1, count do L.teamLives[Core.TEAMS.LETTERS[i]] = lives end
+	self:teams_broadcast(L)
+end
+
+--- Everyone on a team: connected players and held (away) seats.
+function Server:team_members(L, team)
+	local r = {}
+	for _, p in ipairs(L.players) do if p.team == team then r[#r + 1] = p end end
+	for _, sl in ipairs(L.slots) do if sl.old.team == team then r[#r + 1] = sl.old end end
+	return r
+end
+
+--- Set a team's shared lives and sync them to everyone.
+function Server:set_team_lives(L, team, lives)
+	if not L.teamLives then return end
+	L.teamLives[team] = lives
+	for _, m in ipairs(self:team_members(L, team)) do m.lives = lives end
+	for _, p in ipairs(L.players) do
+		if p.team == team then
+			sendA(p, { action = "playerInfo", lives = lives })
+			local info = self:enemy_info(p, true)
+			for _, o in ipairs(L.players) do if o ~= p then sendA(o, info) end end
+		end
+	end
+end
+
+--- Life loss outside the PvP resolution (timers, failed rounds). In Teams the whole team loses
+--- one life, once per cause per round (the teammates' blockers are set too).
+function Server:lose_life_for(c, cause)
+	local L = c.lobby
+	if not L or not self:teams_active(L) or not c.team then return self:lose_life(c, cause) end
+	local blocked = (cause == "timer") and c.timerLivesBlocker or (cause ~= "timer" and c.roundLivesBlocker)
+	if blocked then return end
+	for _, m in ipairs(self:team_members(L, c.team)) do
+		if cause == "timer" then m.timerLivesBlocker = true else m.roundLivesBlocker = true end
+	end
+	self:set_team_lives(L, c.team, math.max(0, (L.teamLives[c.team] or c.lives) - 1))
+end
+
+--- Tell everyone the teams, team lives and (optionally) which team lost the last PvP.
+function Server:teams_broadcast(L, lastLoser, has_last)
+	if not self:teams_active(L) then return end
+	local teams = {}
+	for letter, lives in pairs(L.teamLives) do teams[letter] = { members = {}, lives = lives } end
+	local function add(p) if p.team and teams[p.team] then local m = teams[p.team].members; m[#m + 1] = { id = p.id, username = p.username } end end
+	for _, p in ipairs(L.players) do add(p) end
+	for _, sl in ipairs(L.slots) do add(sl.old) end
+	for _, p in ipairs(L.players) do
+		local msg = { action = "teamsUpdate", you = p.id, team = p.team, teamSize = L.teamSize, teams = teams }
+		if has_last then msg.lastLoser = lastLoser or "none" end
+		sendA(p, msg)
+	end
+end
+
+--- Teams PvP resolution: the single lowest team sum loses a team life (tie: nobody).
+function Server:resolve_teams_pvp(L, alive)
+	local present, n_teams = {}, 0
+	for _, p in ipairs(alive) do
+		if p.team then
+			if not present[p.team] then present[p.team] = {}; n_teams = n_teams + 1 end
+			local list = present[p.team]
+			list[#list + 1] = p.score
+		end
+	end
+	local timerLosers = filter(alive, function(p) return p.pvpTimerFailed end)
+	local loser = nil
+	if #timerLosers == 0 and n_teams >= 2 then
+		loser = Core.TEAMS.resolve(present, L.teamSize, s_gt, s_eq)
+		if loser then self:set_team_lives(L, loser, math.max(0, L.teamLives[loser] - 1)) end
+	end
+	for _, p in ipairs(alive) do p.firstReady, p.pvpDone, p.pvpTimerFailed = false, false, false end
+	for _, p in ipairs(alive) do
+		for _, o in ipairs(L.players) do if o ~= p then sendA(p, self:enemy_info(o, true)) end end
+	end
+	self:teams_broadcast(L, loser, true)
+	if self:check_game_over(L) then return end
+	local timer_teams = {}
+	for _, p in ipairs(timerLosers) do if p.team then timer_teams[p.team] = true end end
+	local ids, seen = {}, {}
+	local function add(p) if not seen[p.id] then seen[p.id] = true; ids[#ids + 1] = p.id end end
+	if loser then for _, m in ipairs(self:team_members(L, loser)) do add(m) end end
+	for _, p in ipairs(L.players) do if p.team and timer_teams[p.team] then add(p) end end
+	for _, p in ipairs(alive) do
+		sendA(p, { action = "endPvP", lost = (loser ~= nil and p.team == loser) or (p.team ~= nil and timer_teams[p.team] == true),
+			pvpTimerLost = (#timerLosers > 0) or nil, opponentsAway = (n_teams < 2) or nil, loserIds = ids, loserTeam = loser })
+	end
+end
+
 ---------------------------------------------------------------- King of the Hill
 function Server:koth_active(L) return L.gameMode == "koth" and Core.KOTH ~= nil end
 
@@ -306,10 +459,12 @@ function Server:koth_resolve(L, alive, roundLosers)
 	if not self:koth_active(L) then return nil end
 	local K = Core.KOTH
 	L.koth = L.koth or K.new_state()
-	local cfg = K.config(L.options)
+	local cfg = K.config(L.options, L.startPlayers)
 	local entries = {}
 	for _, p in ipairs(alive) do entries[#entries + 1] = { id = p.id, name = p.username, score = p.score } end
-	local ev = K.resolve(L.koth, entries, #roundLosers == 1 and roundLosers[1].id or nil, s_gt, s_eq, cfg)
+	local loser_ids = {}
+	for i, p in ipairs(roundLosers) do loser_ids[i] = p.id end
+	local ev = K.resolve(L.koth, entries, loser_ids, s_gt, s_eq, cfg)
 	if ev.lifeBonus and ev.claimedBy then
 		local p = find(alive, function(x) return x.id == ev.claimedBy end)
 		if p and p.lives < cfg.starting_lives then
@@ -329,7 +484,7 @@ function Server:koth_broadcast(L, ev)
 		L.koth = L.koth or Core.KOTH.new_state()
 		local names = {}
 		for _, p in ipairs(L.players) do names[p.id] = p.username end
-		ev = Core.KOTH.snapshot(L.koth, names, Core.KOTH.config(L.options))
+		ev = Core.KOTH.snapshot(L.koth, names, Core.KOTH.config(L.options, L.startPlayers))
 	end
 	for _, p in ipairs(L.players) do sendA(p, copy(ev, { action = "kothUpdate", you = p.id })) end
 end
@@ -362,6 +517,8 @@ function Server:leave(c)
 	if #L.players == 0 then self:destroy(L); return end
 	if L.isInGame then
 		self:broadcast(L, { action = "playerLeft", playerId = c.id, username = c.username })
+		c.team = nil
+		self:teams_broadcast(L)
 		self:check_game_over(L)
 		if L.isInGame then self:try_start_blind(L); self:try_resolve_pvp(L) end
 	else
@@ -391,7 +548,7 @@ function Server:disconnect(c)
 	self:lobby_info(L)
 end
 
-local SLOT_FIELDS = { "lives", "score", "handsLeft", "ante", "skips", "furthestBlind", "isReady", "firstReady",
+local SLOT_FIELDS = { "team", "lives", "score", "handsLeft", "ante", "skips", "furthestBlind", "isReady", "firstReady",
 	"isReadyLobby", "roundLivesBlocker", "timerLivesBlocker", "location", "eliminated", "pvpDone",
 	"pvpTimerFailed", "playedThisBlind", "blindSeq", "inPvp", "sitOut", "modHash", "isCached" }
 
@@ -419,6 +576,7 @@ function Server:reclaim(L, c, slot)
 	sendA(c, copy(copy({ gamemode = L.gameMode }, L.options), { action = "lobbyOptions" }))
 	self:send_resume(L, c, false)
 	self:koth_broadcast(L)
+	self:teams_broadcast(L)
 	if missed then sendA(c, { action = "endPvP", lost = false, loserIds = {} }) end
 	for _, p in ipairs(L.players) do
 		if p ~= c then
@@ -486,10 +644,11 @@ function Server:join(L, c)
 			local s2 = self:take_over(L, stale)
 			if s2 then return self:reclaim(L, c, s2) end
 		end
-		if #L.players + #L.slots < Core.MAX_PLAYERS then return self:late_join(L, c) end
+		-- late join if there's a free seat (not in Teams: teams are fixed at the start)
+		if L.gameMode ~= "teams" and #L.players + #L.slots < Core.max_players(L.gameMode) then return self:late_join(L, c) end
 		return sendA(c, { action = "error", message = "Lobby is full." })
 	end
-	if #L.players >= Core.MAX_PLAYERS then
+	if #L.players >= Core.max_players(L.gameMode) then
 		return sendA(c, { action = "error", message = "Lobby is full or does not exist." })
 	end
 	L.players[#L.players + 1] = c
@@ -550,7 +709,9 @@ function H.keepAliveAck() end
 function H.startGame(S, c)
 	local L = c.lobby
 	if not L or L.players[1] ~= c then return end
-	if #L.players < 2 then return sendA(c, { action = "error", message = "Need at least 2 players to start." }) end
+	local why = Core.start_error(L.gameMode, #L.players, L.options)
+	if why then return sendA(c, { action = "error", message = why }) end
+	L.startPlayers = #L.players
 	local lives = tonumber(L.options.starting_lives) or Core.STARTING_LIVES[L.gameMode] or 4
 	local seed = nil
 	if not L.options.different_seeds then seed = rand_str("ABCDEFGHIJKLMNPQRSTUVWXYZ123456789", 8) end
@@ -562,6 +723,7 @@ function H.startGame(S, c)
 	S:broadcast(L, { action = "playerInfo", lives = lives })
 	L.koth = nil
 	S:koth_broadcast(L)
+	S:teams_start(L, lives)
 	for i = 2, #L.players do L.players[i].isReadyLobby = false end
 	for _, p in ipairs(L.players) do
 		for _, o in ipairs(L.players) do if o ~= p then sendA(p, S:enemy_info(o, true)) end end
@@ -609,7 +771,7 @@ function H.playHand(S, c, a)
 end
 function H.failPvPTimer(S, c)
 	local L = c.lobby
-	S:lose_life(c, "timer")
+	S:lose_life_for(c, "timer")
 	if not L then return end
 	c.pvpDone, c.pvpTimerFailed = true, true
 	if S:check_game_over(L) then return end
@@ -632,16 +794,17 @@ function H.lobbyOptions(S, c, a)
 		end
 	end
 	for i = 2, #L.players do sendA(L.players[i], copy(copy({ gamemode = L.gameMode }, opts), { action = "lobbyOptions" })) end
+	if L.gameMode == "teams" and not L.isInGame and (opts.teams_order ~= nil or opts.teams_size ~= nil) then S:lobby_info(L) end
 end
 function H.failRound(S, c)
 	local L = c.lobby
 	if not L then return end
-	if L.options.death_on_round_loss then S:lose_life(c, "round") end
+	if L.options.death_on_round_loss then S:lose_life_for(c, "round") end
 	S:check_game_over(L)
 end
 function H.failTimer(S, c)
 	local L = c.lobby
-	S:lose_life(c, "timer")
+	S:lose_life_for(c, "timer")
 	if L then S:check_game_over(L) end
 end
 function H.setAnte(S, c, a) c.ante = tonumber(a.ante) or c.ante end
@@ -650,7 +813,7 @@ function H.newRound(S, c) S:reset_blocker(c) end
 function H.setFurthestBlind(S, c, a) c.furthestBlind = tonumber(a.furthestBlind) or c.furthestBlind end
 function H.skip(S, c, a)
 	c.skips = tonumber(a.skips) or c.skips
-	if c.lobby then S:to_opponents(c, S:enemy_info(c, true)) end
+	if c.lobby then S:to_others(c, S:enemy_info(c, true)) end -- teammates see skips too
 end
 function H.syncClient(S, c, a) c.isCached = a.isCached and true or false end
 function H.resumeRestarted(S, c)

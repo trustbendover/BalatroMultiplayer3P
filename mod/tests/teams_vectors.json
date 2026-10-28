@@ -1,0 +1,52 @@
+{
+  "_comment": "Teams rule vectors, shared by mod/tests/test_teams.lua and server/test/teams.test.mjs",
+  "plans": [
+    { "n": 3, "options": {}, "size": null },
+    { "n": 4, "options": {}, "size": 2, "count": 2 },
+    { "n": 5, "options": {}, "size": null },
+    { "n": 6, "options": {}, "size": 2, "count": 3 },
+    { "n": 6, "options": { "teams_size": "3" }, "size": 3, "count": 2 },
+    { "n": 8, "options": { "teams_size": "4" }, "size": 4, "count": 2 },
+    { "n": 8, "options": { "teams_size": "3" }, "size": 2, "count": 4 },
+    { "n": 4, "options": { "teams_size": "4" }, "size": 2, "count": 2 },
+    { "n": 9, "options": {}, "size": null }
+  ],
+  "assign": [
+    { "n": 4, "options": {}, "expect": ["A", "A", "B", "B"] },
+    { "n": 4, "options": { "teams_order": "1,3,2,4" }, "expect": ["A", "B", "A", "B"] },
+    { "n": 4, "options": { "teams_order": "1,1,2,4" }, "expect": ["A", "A", "B", "B"] },
+    { "n": 6, "options": { "teams_size": "3", "teams_order": "6,5,4,3,2,1" }, "expect": ["B", "B", "B", "A", "A", "A"] },
+    { "n": 6, "options": {}, "expect": ["A", "A", "B", "B", "C", "C"] },
+    { "n": 8, "options": { "teams_size": "4" }, "expect": ["A", "A", "A", "A", "B", "B", "B", "B"] }
+  ],
+  "cases": [
+    { "name": "plain sums, B lower", "size": 2, "teams": { "A": ["1000", "500"], "B": ["900", "500"] }, "loser": "B" },
+    { "name": "carry: one strong + one weak beats two average", "size": 2, "teams": { "A": ["5000", "100"], "B": ["2500", "2500"] }, "loser": "B" },
+    { "name": "equal sums tie", "size": 2, "teams": { "A": ["100", "200"], "B": ["150", "150"] }, "loser": null },
+    { "name": "same scores swapped tie", "size": 2, "teams": { "A": ["1.5e20", "3e19"], "B": ["3e19", "1.5e20"] }, "loser": null },
+    { "name": "away teammate counts as the team average", "size": 2, "teams": { "A": ["600"], "B": ["500", "600"] }, "loser": "B" },
+    { "name": "away teammate (loses)", "size": 2, "teams": { "A": ["500"], "B": ["500", "600"] }, "loser": "A" },
+    { "name": "nobody present on A: B vs nobody", "size": 2, "teams": { "A": [], "B": ["1", "2"] }, "loser": null },
+    { "name": "zero vs zero tie", "size": 2, "teams": { "A": ["0", "0"], "B": ["0", "0"] }, "loser": null },
+    { "name": "big exponents (log domain)", "size": 2, "teams": { "A": ["1e400", "1e399"], "B": ["1.05e400", "1"] }, "loser": "B" },
+    { "name": "big vs plain", "size": 2, "teams": { "A": ["2e291", "0"], "B": ["9e290", "9e290"] }, "loser": "B" },
+    { "name": "ee beats anything", "size": 2, "teams": { "A": ["ee1.2e5", "0"], "B": ["1e500", "1e500"] }, "loser": "B" },
+    { "name": "ee vs ee by largest", "size": 2, "teams": { "A": ["ee1.2e5", "100"], "B": ["ee1.3e5", "1"] }, "loser": "A" },
+    { "name": "ee tie on largest -> second", "size": 2, "teams": { "A": ["ee1.2e5", "100"], "B": ["ee1.2e5", "99"] }, "loser": "B" },
+    { "name": "2v2v2: single lowest team", "size": 2, "teams": { "A": ["100", "100"], "B": ["50", "100"], "C": ["300", "10"] }, "loser": "B" },
+    { "name": "2v2v2: tie for lowest spares both", "size": 2, "teams": { "A": ["100", "50"], "B": ["50", "100"], "C": ["300", "10"] }, "loser": null },
+    { "name": "3v3 with one away on A", "size": 3, "teams": { "A": ["300", "300"], "B": ["100", "200", "300"] }, "loser": "B" },
+    { "name": "4v4 sums", "size": 4, "teams": { "A": ["1", "2", "3", "4"], "B": ["2", "2", "3", "4"] }, "loser": "A" },
+    { "name": "2v2v2v2 one team absent", "size": 2, "teams": { "A": ["10", "10"], "B": [], "C": ["30", "1"], "D": ["5", "40"] }, "loser": "A" }
+  ],
+  "ffa": [
+    { "name": "2 players: lower loses", "scores": [10, 20], "losers": [0] },
+    { "name": "2 players tie", "scores": [10, 10], "losers": [] },
+    { "name": "3 players", "scores": [30, 10, 20], "losers": [1] },
+    { "name": "5 players single loser", "scores": [5, 4, 3, 2, 1], "losers": [4] },
+    { "name": "6 players bottom two", "scores": [60, 10, 50, 20, 40, 30], "losers": [1, 3] },
+    { "name": "6 players tie at the cut spared", "scores": [60, 10, 50, 20, 20, 30], "losers": [1] },
+    { "name": "8 players two tied lowest both lose", "scores": [1, 1, 3, 4, 5, 6, 7, 8], "losers": [0, 1] },
+    { "name": "8 players three tied lowest: nobody", "scores": [1, 1, 1, 4, 5, 6, 7, 8], "losers": [] }
+  ]
+}

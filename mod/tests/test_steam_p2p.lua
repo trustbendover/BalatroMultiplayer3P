@@ -4,6 +4,9 @@ package.path = "tests/?.lua;" .. package.path
 local json = require("dkjson")
 local P2P = dofile("networking/steam_p2p.lua")
 local Core = dofile("networking/p2p_server.lua")
+Core.KOTH = Core.KOTH or dofile("networking/koth_rules.lua")
+Core.TEAMS = dofile("networking/teams_rules.lua")
+Core.PVP = dofile("networking/pvp_rules.lua")
 local T = 1000
 local now = function() return T end
 local NET = { lobbies = {}, inbox = {}, next = 1 }
@@ -179,4 +182,28 @@ H.send({ action = "leaveLobby" }); pump(); H.msgs = {}
 ok(H.r.join_text(" " .. A.last("joinedLobby").code:lower() .. " ") == "code", "paste: 5-letter code still works")
 for _ = 1, 2 do T = T + 4; pump() end
 ok(H.r.mode == "guest" and H.last("joinedLobby"), "pasted code joins")
+
+-- ===== 8 players over Steam P2P (star: every guest talks to the host only), Teams 4v4 =====
+for _, p in ipairs(all) do if p.r.mode ~= "local" then p.send({ action = "leaveLobby" }) end end
+pump()
+local eight = {}
+for i = 1, 9 do eight[i] = player("p8_" .. i) end
+all = eight
+for _, p in ipairs(eight) do p.send({ action = "connect" }); p.send({ action = "username", username = p.name, modHash = "t" }); p.send({ action = "version", version = "0.6.7~3P" }) end
+eight[1].send({ action = "createLobby", gameMode = "teams" }); pump()
+local code8 = eight[1].last("joinedLobby").code
+eight[1].send({ action = "lobbyOptions", teams_size = "4", starting_lives = "1" }); pump()
+for i = 2, 8 do eight[i].send({ action = "joinLobby", code = code8 }) end
+pump(10)
+ok(#eight[1].last("lobbyInfo").players == 8 and eight[8].r.mode == "guest", "8 players in one Steam lobby")
+eight[9].send({ action = "joinLobby", code = code8 }); pump(10)
+ok(eight[9].last("error") and eight[9].last("error").message:find("full"), "9th player refused by the host core")
+for _, p in ipairs(eight) do p.msgs = {} end
+eight[1].send({ action = "startGame" }); pump(10)
+local tu = eight[5].last("teamsUpdate")
+ok(tu and tu.teamSize == 4 and tu.team == "B", "4v4 teams over P2P (seat 5 is team B)")
+for i = 1, 8 do eight[i].send({ action = "readyBlind" }) end pump(10)
+for i = 1, 8 do eight[i].send({ action = "playHand", score = tostring(i <= 4 and 100 or 10), handsLeft = 0 }) end pump(10)
+ok(eight[1].last("winGame") and eight[4].last("winGame") and eight[5].last("loseGame") and eight[8].last("loseGame"),
+	"team B (lower sum) out at 0 lives, all of team A win")
 print("PASS: steam p2p router tests")
