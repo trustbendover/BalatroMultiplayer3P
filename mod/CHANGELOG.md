@@ -47,7 +47,7 @@
 - **Ouija** — Destroys 3 cards instead of converting all cards to a single suit and reducing hand size.
 - **Judgment** — Now draws from its own queue (vanilla behavior) on Orange Stake and above. Still uses the shop queue on lower stakes.
 
-## 0.6.7~3P (in development - not released yet) - "Balatro High Stakes"
+## 0.6.7~3P - 2026-10-28 - "Balatro High Stakes"
 
 - **Deathmatch** (new mode, 2-8 players): Attrition life rules (4 lives), but guaranteed all-vs-all to the last one standing.
   Every Nemesis blind is all living players at once; lowest score loses a life (6-8 alive: bottom two). Leaving = eliminated;

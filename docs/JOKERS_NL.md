@@ -1,4 +1,4 @@
-# Speciale multiplayer-jokers (Balatro High Stakes 0.6.7, in ontwikkeling)
+# Speciale multiplayer-jokers (Balatro High Stakes 0.6.7)
 
 Onofficiële fork van Balatro Multiplayer (GPL, credits aan Virtualized en het Balatro Multiplayer-team).
 Ontwerp en implementatie voor de fork: Trust Ben Dover. (Vroeger "3-speler jokers"; vanaf 0.6.7

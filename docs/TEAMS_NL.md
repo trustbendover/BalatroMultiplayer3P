@@ -1,6 +1,6 @@
 # Teams (2v2, 3v3, 4v4, 2v2v2, 2v2v2v2) – Balatro High Stakes 0.6.7
 
-*Status: in ontwikkeling voor 0.6.7~3P, nog niet uitgebracht. Onofficiële fork van Balatro Multiplayer
+*Status: uitgebracht in 0.6.7 (28-10-2026). Onofficiële fork van Balatro Multiplayer
 (GPL-3.0, credits aan Virtualized en het Balatro Multiplayer-team). Ontwerp en code: Trust Ben Dover.*
 
 ## In één zin

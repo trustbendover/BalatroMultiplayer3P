@@ -1,6 +1,6 @@
 # King of the Hill / Bounty – spelmodus voor 2 tot 8 spelers
 
-*Status: in ontwikkeling voor 0.6.7~3P (Balatro High Stakes, nog niet uitgebracht).*
+*Status: uitgebracht in 0.6.7 (Balatro High Stakes, 28-10-2026).*
 
 ## Het idee in één zin
 Wie de PvP wint wordt **Koning** en krijgt een **premie** op zijn hoofd die elke ronde groeit;

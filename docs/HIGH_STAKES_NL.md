@@ -1,6 +1,6 @@
 # Balatro High Stakes 0.6.7 – overzicht (2 tot 8 spelers)
 
-*Status: in ontwikkeling (branch `feature/2v2`), nog niet uitgebracht, geen tag. Onofficiële fork van
+*Status: uitgebracht in 0.6.7 (28-10-2026). Onofficiële fork van
 Balatro Multiplayer (GPL-3.0, credits aan Virtualized en het Balatro Multiplayer-team), door Trust Ben Dover.
 Voorheen "Balatro Multiplayer 3P".*
 

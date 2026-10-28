@@ -22,13 +22,13 @@ support them via their own channels.
 updater/update.ps1 + updater/Update.bat (download, SHA256 check, install in update mode),
 ui/main_menu/main_menu.lua. Repository: https://github.com/trustbendover/BalatroMultiplayer3P
 
-0.6.7 (in development): King of the Hill gamemode - gamemodes/koth.lua, lib/koth.lua,
+0.6.7: King of the Hill gamemode - gamemodes/koth.lua, lib/koth.lua,
 networking/koth_rules.lua, tests/test_koth*.lua, tests/koth_vectors.json; hooks in
 networking/p2p_server.lua, lib/three_player.lua, ui/main_menu/play_button/*, localization (en-us, nl).
-0.6.7 (in development): special 3-player jokers - lib/jokers_3p.lua, objects/jokers/threep/*.lua,
+0.6.7: special 3-player jokers - lib/jokers_3p.lua, objects/jokers/threep/*.lua,
 assets/{1x,2x}/j_<key>.png (original pixel art, tools/joker_art_3p/), tests/test_jokers_3p.lua.
 
-0.6.7 (in development): renamed to Balatro High Stakes (display names, MP.BRAND in core.lua); 2-8 players -
+0.6.7: renamed to Balatro High Stakes (display names, MP.BRAND in core.lua); 2-8 players -
 networking/p2p_server.lua, networking/steam_p2p.lua (lobby for 8), networking/pvp_rules.lua and
 networking/teams_rules.lua (new), lib/modes.lua and lib/teams.lua (new), gamemodes/duel.lua and
 gamemodes/teams.lua (new), lib/three_player.lua, lib/jokers_3p.lua, objects/jokers/threep/*.lua,
@@ -38,7 +38,7 @@ localization (en-us, nl, de, fr), tests/test_teams.lua, tests/test_multi_client.
 
 Unofficial fork. Not affiliated with or endorsed by LocalThunk, Playstack, or the Balatro Multiplayer team.
 
-0.6.7 (in development): Deathmatch gamemode - gamemodes/deathmatch.lua, lib/deathmatch.lua (new),
+0.6.7: Deathmatch gamemode - gamemodes/deathmatch.lua, lib/deathmatch.lua (new),
 networking/p2p_server.lua (grace elimination, final-death rule, deathmatchUpdate), lib/modes.lua, lib/jokers_3p.lua,
 ui/game/game_end.lua, ui/main_menu/play_button/gamemode_selection.lua, localization (en-us, nl),
 tests/test_deathmatch_client.lua (new), tests/test_steam_p2p.lua.
