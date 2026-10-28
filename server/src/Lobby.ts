@@ -451,6 +451,7 @@ class Lobby {
 	};
 
 	setOptions = (options: { [key: string]: string }) => {
+		const teamsBefore = `${this.options.teams_order ?? ""}|${this.options.teams_size ?? ""}`;
 		for (const key of Object.keys(options)) {
 			if (options[key] === "true" || options[key] === "false") {
 				this.options[key] = options[key] === "true";
@@ -459,7 +460,10 @@ class Lobby {
 			}
 		}
 		for (const p of this.players.slice(1)) p.sendAction({ action: "lobbyOptions", gamemode: this.gameMode, ...options });
-		if (this.gameMode === "teams" && !this.isInGame && ("teams_order" in options || "teams_size" in options)) this.broadcastLobbyInfo();
+		// Re-broadcast the team preview only when the split really changed (the host re-sends
+		// all options after every lobbyInfo, so an unconditional broadcast would loop).
+		const teamsAfter = `${this.options.teams_order ?? ""}|${this.options.teams_size ?? ""}`;
+		if (this.gameMode === "teams" && !this.isInGame && teamsAfter !== teamsBefore) this.broadcastLobbyInfo();
 	};
 
 	resetPlayers = () => {

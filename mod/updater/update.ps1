@@ -1,4 +1,4 @@
-# Balatro Multiplayer 3P - updater (Windows PowerShell 5.1+). GPL-3.0.
+# Balatro High Stakes (formerly Balatro Multiplayer 3P) - updater (Windows PowerShell 5.1+). GPL-3.0.
 # Downloads the Installer zip of the latest GitHub release, verifies its SHA256 against the
 # SHA256SUMS asset, waits until Balatro is closed and runs the installer in update mode
 # (keeps your .env settings). Started by the "Update available" button in the game, or by Update.bat.
@@ -64,7 +64,7 @@ if (-not $CurrentVersion) {
     }
 }
 
-Say "Balatro Multiplayer 3P updater" Cyan
+Say "Balatro High Stakes updater" Cyan
 Say "  Installed: $(if ($CurrentVersion) { $CurrentVersion } else { 'not found' })"
 $headers = @{ 'User-Agent' = 'BalatroMultiplayer3P-updater'; 'Accept' = 'application/vnd.github+json' }
 

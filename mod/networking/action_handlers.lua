@@ -113,7 +113,7 @@ local function action_connected()
 		local code, token = load_reconnect_info()
 		if code then
 			lastLobbyCode, reconnectToken = code, token
-			sendWarnMessage("Found a running 3P game (" .. code .. "), trying to rejoin...", "MULTIPLAYER")
+			sendWarnMessage("Found a running game (" .. code .. "), trying to rejoin...", "MULTIPLAYER")
 		end
 	end
 	if reconnectToken and lastLobbyCode then
@@ -297,15 +297,38 @@ local function action_lobbyInfo(p)
 			config = tConfig,
 		}
 	end
-	-- Map player ids -> display names (for the 3P HUD)
+	-- All seats 1..8 in server order (seat 1 = host). host/guest/third stay as aliases.
+	MP.LOBBY.seats = { MP.LOBBY.host, MP.LOBBY.guest.username and MP.LOBBY.guest or nil, MP.LOBBY.third.username and MP.LOBBY.third or nil }
+	for i = 4, #(p.players or {}) do
+		local pl = p.players[i]
+		local sName, sCol = parseName(pl.username)
+		local sConfig, sMods = MP.UTILS.parse_Hash(pl.hash)
+		MP.LOBBY.seats[i] = {
+			username = sName,
+			blind_col = sCol,
+			hash_str = sMods,
+			hash = hash(sMods),
+			cached = pl.cached,
+			config = sConfig,
+		}
+	end
+	for i, pl in ipairs(p.players or {}) do
+		if MP.LOBBY.seats[i] then
+			MP.LOBBY.seats[i].team = pl.team
+			MP.LOBBY.seats[i].id = pl.id
+		end
+	end
+	MP.LOBBY.max_players = p.maxPlayers or MP.LOBBY.max_players
+	-- Map player ids -> display names (for the HUD)
 	MP.LOBBY.names_by_id = {}
 	for _, pl in ipairs(MP.LOBBY.player_list) do
 		MP.LOBBY.names_by_id[pl.id] = (parseName(pl.username))
 	end
 
-	-- 3P fork: ready when at least 2 players and every non-host is ready
+	-- Ready when the player count fits the mode (MP.MODES.start_problem) and every non-host is ready
 	if p.players then
 		local all_ready = #p.players >= 2
+		if is_host and MP.MODES and MP.MODES.start_problem(#p.players) then all_ready = false end
 		for i = 2, #p.players do
 			if not p.players[i].ready then all_ready = false end
 		end
@@ -665,7 +688,7 @@ local function action_resume_game(p)
 		return
 	end
 	local target_ante = math.max(1, tonumber(p.ante) or 1)
-	sendWarnMessage(string.format("Resuming 3P game at ante %d (%s)", target_ante, p.lateJoin and "late join" or "rejoin"), "MULTIPLAYER")
+	sendWarnMessage(string.format("Resuming game at ante %d (%s)", target_ante, p.lateJoin and "late join" or "rejoin"), "MULTIPLAYER")
 	if G.STAGE == G.STAGES.RUN then MP.reset_game_states() end
 	action_start_game({ seed = p.seed })
 	-- We can't finish a PvP blind that's already running with a fresh run

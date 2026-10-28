@@ -1,4 +1,4 @@
-# Balatro Multiplayer 3P - uninstaller: removes what install.ps1 added and restores backups
+# Balatro High Stakes - uninstaller: removes what install.ps1 added and restores backups
 param([string]$ModsRoot = "", [switch]$NoPrompt, [switch]$SkipProcessCheck, [switch]$NoPause)
 $ErrorActionPreference = 'Stop'
 function J([string]$base, [string]$rel) { $p = $base; foreach ($s in $rel.Split('\')) { if ($s) { $p = Join-Path $p $s } }; return $p }
@@ -7,7 +7,7 @@ function Finish($code) { if (-not $NoPause) { Write-Host ""; Read-Host "Press En
 
 if (-not $ModsRoot) { $ModsRoot = J $env:APPDATA 'Balatro\Mods' }
 $ManifestPath = Join-Path (Split-Path -Parent $ModsRoot) 'MP3P-install.json'
-Say "=== Balatro Multiplayer 3P uninstaller ===" Cyan
+Say "=== Balatro High Stakes uninstaller ===" Cyan
 if (-not (Test-Path -LiteralPath $ManifestPath)) { Say "Nothing to uninstall (no install record found at $ManifestPath)." Yellow; Finish 1 }
 if (-not $SkipProcessCheck) {
     while (Get-Process -Name 'Balatro' -ErrorAction SilentlyContinue) {
@@ -18,7 +18,7 @@ if (-not $SkipProcessCheck) {
 }
 $m = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
 if (-not $NoPrompt) {
-    $a = Read-Host "Remove the 3P mod, Steamodded and Lovely and restore your backups? (y/N)"
+    $a = Read-Host "Remove the High Stakes mod, Steamodded and Lovely and restore your backups? (y/N)"
     if ($a -notmatch '^[yY]') { Say "Cancelled."; Finish 0 }
 }
 foreach ($p in @($m.installedPaths)) {

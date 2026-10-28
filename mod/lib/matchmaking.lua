@@ -200,14 +200,24 @@ function MP.UTILS.player_mod_version(player, mod_name)
 end
 
 function MP.UTILS.mp_version_mismatch()
-	local other = MP.LOBBY.is_host and MP.LOBBY.guest or MP.LOBBY.host
-	local their_version = other and MP.UTILS.player_mod_version(other, "Multiplayer")
-	if not their_version then return false end
+	-- Host: any seat (2-8 players); guest: the host.
+	local others = {}
+	if MP.LOBBY.is_host then
+		for i = 2, 8 do
+			local seat = (MP.LOBBY.seats and MP.LOBBY.seats[i]) or (i == 2 and MP.LOBBY.guest) or nil
+			if seat and seat.username then others[#others + 1] = seat end
+		end
+	elseif MP.LOBBY.host then
+		others[1] = MP.LOBBY.host
+	end
 	local our_version = SMODS.Mods["Multiplayer"].version
 	local our_prefix = MP.UTILS.version_prefix(our_version)
-	local their_prefix = MP.UTILS.version_prefix(their_version)
-	if our_prefix and their_prefix and our_prefix ~= their_prefix then
-		return true, our_version, their_version
+	for _, other in ipairs(others) do
+		local their_version = MP.UTILS.player_mod_version(other, "Multiplayer")
+		local their_prefix = their_version and MP.UTILS.version_prefix(their_version)
+		if our_prefix and their_prefix and our_prefix ~= their_prefix then
+			return true, our_version, their_version
+		end
 	end
 	return false
 end
@@ -221,7 +231,28 @@ local VERSION_CHECKS = {
 
 -- Returns { mod, our, their } for each checked mod whose version differs from the opponent's.
 function MP.UTILS.version_mismatches()
-	local other = MP.LOBBY.is_host and MP.LOBBY.guest or MP.LOBBY.host
+	-- Host: compare against every seat (2-8 players); guest: against the host (the host runs the game).
+	local others = {}
+	if MP.LOBBY.is_host then
+		for i = 2, 8 do
+			local seat = (MP.LOBBY.seats and MP.LOBBY.seats[i]) or (i == 2 and MP.LOBBY.guest) or nil
+			if seat and seat.username then others[#others + 1] = seat end
+		end
+		if #others == 0 and MP.LOBBY.guest then others[1] = MP.LOBBY.guest end
+	elseif MP.LOBBY.host then
+		others[1] = MP.LOBBY.host
+	end
+	local results = {}
+	for _, other in ipairs(others) do
+		for _, r in ipairs(MP.UTILS.version_mismatches_with(other)) do
+			r.player = other.username
+			results[#results + 1] = r
+		end
+	end
+	return results
+end
+
+function MP.UTILS.version_mismatches_with(other)
 	if not other then return {} end
 
 	local results = {}

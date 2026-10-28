@@ -285,7 +285,7 @@ return {
 				"ennemie",
 			},
 			ml_mp_kofi_message = {
-				"This 3-player mod is made",
+				"This mod (Balatro High Stakes) is made",
 				"by Trust Ben Dover,",
 				"if you like it",
 				"consider",

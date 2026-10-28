@@ -1,5 +1,19 @@
 MP = SMODS.current_mod
 
+-- Display names in one place. The mod id stays "Multiplayer" (save data, config, SMODS.Mods lookups),
+-- and the install folder / GitHub repo / release zip names stay "BalatroMultiplayer3P" so 0.6.6
+-- installs keep finding updates (GitHub redirects if the repo is renamed later).
+MP.BRAND = {
+	name = "Balatro High Stakes",
+	short = "High Stakes",
+	former_name = "Balatro Multiplayer 3P",
+	author = "Trust Ben Dover",
+	repo = "trustbendover/BalatroMultiplayer3P",
+	folder = "BalatroMultiplayer3P",
+	min_players = 2,
+	max_players = 8,
+}
+
 MP.BANNED_MODS = {
 	["Incantation"] = true,
 	["Brainstorm"] = true,
@@ -28,7 +42,9 @@ MP.LOBBY = {
 	blind_col = 1,
 	host = {},
 	guest = {},
-	third = {}, -- 3P fork
+	third = {}, -- seat 3 alias
+	seats = {}, -- seats 1..8 (seat 1 = host)
+	max_players = 8,
 	player_list = {},
 	player_count = 0,
 	is_host = false,

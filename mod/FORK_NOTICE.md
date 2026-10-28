@@ -1,4 +1,4 @@
-# Balatro Multiplayer 3P (fork)
+# Balatro High Stakes (fork, formerly "Balatro Multiplayer 3P")
 
 This is a modified version of [Balatro Multiplayer](https://github.com/Balatro-Multiplayer/BalatroMultiplayer)
 by Virtualized and contributors, licensed under GPL-3.0 (see LICENSE.md, unchanged).
@@ -27,5 +27,13 @@ networking/koth_rules.lua, tests/test_koth*.lua, tests/koth_vectors.json; hooks 
 networking/p2p_server.lua, lib/three_player.lua, ui/main_menu/play_button/*, localization (en-us, nl).
 0.6.7 (in development): special 3-player jokers - lib/jokers_3p.lua, objects/jokers/threep/*.lua,
 assets/{1x,2x}/j_<key>.png (original pixel art, tools/joker_art_3p/), tests/test_jokers_3p.lua.
+
+0.6.7 (in development): renamed to Balatro High Stakes (display names, MP.BRAND in core.lua); 2-8 players -
+networking/p2p_server.lua, networking/steam_p2p.lua (lobby for 8), networking/pvp_rules.lua and
+networking/teams_rules.lua (new), lib/modes.lua and lib/teams.lua (new), gamemodes/duel.lua and
+gamemodes/teams.lua (new), lib/three_player.lua, lib/jokers_3p.lua, objects/jokers/threep/*.lua,
+networking/action_handlers.lua, ui/lobby/players_display.lua, ui/lobby/lobby.lua,
+ui/lobby/start_ready_button.lua, ui/game/lobby_info.lua, ui/main_menu/play_button/*, lib/matchmaking.lua,
+localization (en-us, nl, de, fr), tests/test_teams.lua, tests/test_multi_client.lua, tests/teams_vectors.json.
 
 Unofficial fork. Not affiliated with or endorsed by LocalThunk, Playstack, or the Balatro Multiplayer team.

@@ -298,6 +298,15 @@ G.FUNCS.view_third_hash = function(e)
 	})
 end
 
+-- Seats 1..8 (lobby player list rows)
+for i = 1, 8 do
+	G.FUNCS["view_seat" .. i .. "_hash"] = function(e)
+		G.FUNCS.overlay_menu({
+			definition = G.UIDEF.create_UIBox_view_hash("seat" .. i),
+		})
+	end
+end
+
 G.FUNCS.view_guest_hash = function(e)
 	G.FUNCS.overlay_menu({
 		definition = G.UIDEF.create_UIBox_view_hash("guest"),

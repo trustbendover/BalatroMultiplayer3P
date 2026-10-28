@@ -119,13 +119,9 @@ function MP.UI.create_UIBox_settings() -- optimize this please
 end
 
 function MP.UI.create_UIBox_players()
-	local players = {
-		MP.UI.create_UIBox_player_row("host"),
-		MP.UI.create_UIBox_player_row("guest"),
-	}
-	-- 3P fork: third player row
-	if MP.LOBBY.third and MP.LOBBY.third.username then
-		players[#players + 1] = MP.UI.create_UIBox_player_row("third")
+	local players = {}
+	for i = 1, math.max(2, MP.THREEP.seat_count()) do
+		players[#players + 1] = MP.UI.create_UIBox_player_row("seat" .. i)
 	end
 
 	local t = {
@@ -157,15 +153,16 @@ function MP.UI.create_UIBox_mods_list(type)
 end
 
 function MP.UI.create_UIBox_player_row(type)
-	local player_name = MP.THREEP.lobby_player(type).username or "?"
+	local seat = MP.THREEP.lobby_player(type)
+	local player_name = (MP.TEAMS and MP.TEAMS.seat_label and seat.username) and MP.TEAMS.seat_label(seat) or seat.username or "?"
 	local lives = MP.GAME.enemy.lives
 	local highest_score = MP.GAME.enemy.highest_score
 	local skips = MP.GAME.enemy.skips or 0
 	-- 3P fork: look up this row's opponent by server id
-	local idx = ({ host = 1, guest = 2, third = 3 })[type]
+	local idx = MP.THREEP.seat_index(type)
 	local pl = MP.LOBBY.player_list and MP.LOBBY.player_list[idx]
 	local is_me = (pl and MP.LOBBY.my_id and pl.id == MP.LOBBY.my_id)
-		or (not pl and ((type == "host" and MP.LOBBY.is_host) or (type == "guest" and not MP.LOBBY.is_host)))
+		or (not pl and ((idx == 1 and MP.LOBBY.is_host) or (idx == 2 and not MP.LOBBY.is_host)))
 	local e = pl and MP.GAME.enemies and MP.GAME.enemies[pl.id]
 	if e and not is_me then
 		lives = e.lives or lives
@@ -181,7 +178,7 @@ function MP.UI.create_UIBox_player_row(type)
 		n = G.UIT.R,
 		config = {
 			align = "cm",
-			padding = 0.1,
+			padding = MP.THREEP.seat_count() > 4 and 0.04 or 0.1,
 			r = 0.1,
 			colour = darken(G.C.JOKER_GREY, 0.1),
 			emboss = 0.05,

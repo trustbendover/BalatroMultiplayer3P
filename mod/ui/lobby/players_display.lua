@@ -1,12 +1,13 @@
 local function create_player_info_row(player, player_type, text_scale)
 	if not player or not player.username then return nil end
+	player.display_name = (MP.TEAMS and MP.TEAMS.seat_label) and MP.TEAMS.seat_label(player) or player.username
 
-	return MP.UI.UTILS.create_row({ padding = 0.1, align = "cm" }, {
+	return MP.UI.UTILS.create_row({ padding = MP.THREEP.seat_count() > 4 and 0.03 or 0.1, align = "cm" }, {
         MP.UI.UTILS.create_column({ align = "cm", maxw = 3 }, {
             MP.UI.UTILS.create_text_node(nil, {
                 ref_table = player,
-                ref_value = "username",
-                scale = text_scale * 0.8,
+                ref_value = "display_name",
+                scale = text_scale * (MP.THREEP.seat_count() > 4 and 0.65 or 0.8),
                 colour = G.C.UI.TEXT_LIGHT,
                 maxw = 3.5
             }),
@@ -34,9 +35,44 @@ function MP.UI.create_players_section(text_scale)
 				colour = G.C.UI.TEXT_LIGHT,
 			}),
 		}),
-		create_player_info_row(MP.LOBBY.host, "host", text_scale),
-		create_player_info_row(MP.LOBBY.guest, "guest", text_scale),
-		-- 3P fork: third seat
-		create_player_info_row(MP.LOBBY.third, "third", text_scale),
+		unpack(MP.UI.players_section_rows(text_scale)),
 	})
+end
+
+--- One row per filled seat (up to 8). Seat 1 is the host.
+function MP.UI.players_section_rows(text_scale)
+	local rows = {}
+	for i = 1, 8 do
+		local seat = (MP.LOBBY.seats and MP.LOBBY.seats[i]) or (i == 1 and MP.LOBBY.host) or (i == 2 and MP.LOBBY.guest) or (i == 3 and MP.LOBBY.third)
+		local row = create_player_info_row(seat, "seat" .. i, text_scale)
+		if row then rows[#rows + 1] = row end
+	end
+	-- Teams: the host picks who plays together
+	if MP.LOBBY.is_host and MP.TEAMS and MP.TEAMS.is_active() then
+		rows[#rows + 1] = MP.UI.UTILS.create_row({ align = "cm", padding = 0.05 }, {
+			UIBox_button({ id = "teams_shuffle", button = "mp_teams_shuffle", label = { MP.MODES.L("b_teams_shuffle", "Shuffle teams") },
+				minw = 1.6, minh = 0.4, scale = 0.3, colour = G.C.ORANGE, col = true }),
+			MP.UI.UTILS.create_blank(0.1, 0.1),
+			UIBox_button({ id = "teams_size", button = "mp_teams_size",
+				label = { MP.MODES.L("b_teams_size", "Team size: #1#", { MP.LOBBY.config.teams_size or 2 }) },
+				minw = 1.6, minh = 0.4, scale = 0.3, colour = G.C.BLUE, col = true }),
+		})
+	end
+	return rows
+end
+
+-- Host buttons (Teams mode). The server answers with a new lobbyInfo holding the team preview.
+function G.FUNCS.mp_teams_shuffle(e)
+	local n = MP.LOBBY.player_list and #MP.LOBBY.player_list or 0
+	if n < 2 then return end
+	MP.LOBBY.config.teams_order = MP.TEAMS.shuffle(n)
+	MP.ACTIONS.lobby_options()
+end
+
+function G.FUNCS.mp_teams_size(e)
+	local n = MP.LOBBY.player_list and #MP.LOBBY.player_list or 4
+	if n < 4 then n = 8 end
+	MP.LOBBY.config.teams_size = MP.TEAMS.next_size(n, MP.LOBBY.config.teams_size or 2)
+	MP.ACTIONS.lobby_options()
+	if MP.ACTIONS.update_player_usernames then pcall(MP.ACTIONS.update_player_usernames) end
 end

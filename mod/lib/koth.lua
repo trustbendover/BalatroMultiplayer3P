@@ -1,4 +1,4 @@
--- Balatro Multiplayer 3P: King of the Hill client side (state, HUD badge, messages, bounty payout).
+-- Balatro High Stakes: King of the Hill client side (state, HUD badge, messages, bounty payout).
 -- GPL-3.0. The rules themselves run on the server (networking/koth_rules.lua / server/src/koth.ts).
 MP.KOTH = MP.KOTH or {}
 local K = MP.KOTH
@@ -51,7 +51,7 @@ function K.messages(p)
 		out[#out + 1] = L("k_koth_msg_other_claimed", "#1# dethroned #2# (+$#3#)", { p.claimedName or "?", p.prevKingName or "?", p.reward or 0 })
 	end
 	if p.shieldedId == me then out[#out + 1] = L("k_koth_msg_shield", "Crown shield: you lose the crown, not a life") end
-	if p.crowned and p.kingId == me then out[#out + 1] = L("k_koth_msg_crowned", "You are the King! Both rivals are after you") end
+	if p.crowned and p.kingId == me then out[#out + 1] = L("k_koth_msg_crowned", "You are the King! Everyone is after you") end
 	if p.prevKingId == me and not p.claimedBy and not p.kingId then out[#out + 1] = L("k_koth_msg_lost", "You lost the crown") end
 	return out
 end

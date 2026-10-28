@@ -1,4 +1,4 @@
-﻿# Balatro Multiplayer 3P - friend installer (Windows PowerShell 5.1+ compatible)
+﻿# Balatro High Stakes (formerly Balatro Multiplayer 3P) - friend installer (Windows PowerShell 5.1+ compatible)
 param(
     [string]$GameDir = "",
     [string]$ModsRoot = "",
@@ -103,8 +103,8 @@ function Get-ModId($folder) {
 }
 
 # =================== MAIN ===================
-Say "=== Balatro Multiplayer 3P installer ===" Cyan
-Say "This installs: Lovely (mod loader), Steamodded, and the 3-player Multiplayer mod."
+Say "=== Balatro High Stakes installer (formerly Balatro Multiplayer 3P) ===" Cyan
+Say "This installs: Lovely (mod loader), Steamodded, and the Balatro High Stakes mod (2-8 player Multiplayer)."
 Say ""
 
 if (-not (Test-Path -LiteralPath (J $Payload "$OurModName\Multiplayer.json"))) {
@@ -206,7 +206,7 @@ $ModDir = Join-Path $ModsRoot $OurModName
 $manifest.installedPaths += $ModDir
 Say "  Lovely      -> $existingDll" Green
 Say "  Steamodded  -> $(Join-Path $ModsRoot 'smods')" Green
-Say "  3P mod      -> $ModDir" Green
+Say "  High Stakes -> $ModDir" Green
 
 # 5. Connection mode
 Say ""

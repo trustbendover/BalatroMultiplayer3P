@@ -1,13 +1,13 @@
 {
   "id": "Multiplayer",
   "name": "Multiplayer",
-  "display_name": "Multiplayer 3P",
+  "display_name": "Balatro High Stakes",
   "author": [
     "Virtualized",
     "see credits",
-    "3P fork: Trust Ben Dover"
+    "Balatro High Stakes fork: Trust Ben Dover"
   ],
-  "description": "3-player fork of Balatro Multiplayer (GPL-3.0). Original: github.com/Balatro-Multiplayer/BalatroMultiplayer",
+  "description": "Balatro High Stakes: unofficial 2-8 player fork of Balatro Multiplayer (GPL-3.0). Original: github.com/Balatro-Multiplayer/BalatroMultiplayer",
   "prefix": "mp",
   "main_file": "core.lua",
   "priority": 10000000,

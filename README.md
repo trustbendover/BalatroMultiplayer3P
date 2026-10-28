@@ -1,9 +1,10 @@
-# Balatro Multiplayer 3P
+# Balatro High Stakes
 
-**3-player Attrition for [Balatro Multiplayer](https://github.com/Balatro-Multiplayer/BalatroMultiplayer)** —
-an unofficial fork by **Trust Ben Dover**. Play Balatro Multiplayer with three people: the lowest score
-each PvP blind loses a life, the last player standing wins. Works over **Steam** (no server, no port
-forwarding) or with your own server.
+**[Balatro Multiplayer](https://github.com/Balatro-Multiplayer/BalatroMultiplayer) for 2 to 8 players** —
+an unofficial fork by **Trust Ben Dover** (formerly "Balatro Multiplayer 3P"). Modes: **1v1 Duel**,
+**Attrition** and **Showdown** (2-8 players; with 6+ players the bottom two lose a life), **King of the Hill**
+(crown, bounty, crown shield) and **Teams** (2v2, 3v3, 4v4, 2v2v2, 2v2v2v2 with shared team lives), plus seven
+special multiplayer jokers. Works over **Steam** (no server, no port forwarding) or with your own server.
 
 > Unofficial fork. Not affiliated with, endorsed by or supported by LocalThunk, Playstack or the
 > Balatro Multiplayer team. You need your own copy of Balatro (Windows, Steam).
@@ -18,7 +19,8 @@ forwarding) or with your own server.
    and backs up anything it replaces. Choose **1 = via Steam** (recommended).
 4. Start Balatro from Steam. The version (`0.6.x~3P`) shows in the main menu.
 
-Everyone in a match needs the same version. `Uninstall.bat` restores your backup.
+Everyone in a match needs the same version. The install folder is still called `BalatroMultiplayer3P`
+and the mod id is still `Multiplayer`, so updating keeps your settings. `Uninstall.bat` restores your backup.
 
 ## Updates
 
@@ -36,7 +38,7 @@ Turn the check off with `update_check=false` in the mod's `.env`.
   **Invite Steam friend** in the lobby / Steam friends list → *Join game*.
   If an invite doesn't land you in the lobby: Play → *Join Steam invite again*, or *Join From Clipboard*.
 - **Rejoin:** crashed or disconnected? Join again with the same code and name — you keep your seat, lives and ante.
-- **Late join:** a third player can join a running match at the lowest ante/lives.
+- **Late join:** another player (up to 8) can join a running match at the lowest ante/lives (not in 1v1 Duel or Teams).
 
 Server mode (TCP) is still available: see [`server/`](server/) and choose option 2 in the installer.
 
@@ -45,17 +47,17 @@ Server mode (TCP) is still available: see [`server/`](server/) and choose option
 | Folder | What |
 | --- | --- |
 | [`mod/`](mod/) | The Balatro mod (Steamodded mod id `Multiplayer`), incl. the Lua P2P server core and the updater |
-| [`server/`](server/) | The 3-player TypeScript server (optional, for TCP mode) |
+| [`server/`](server/) | The 2-8 player TypeScript server (optional, for TCP mode) |
 | [`installer/`](installer/) | Windows installer / uninstaller scripts and the texts that go into the Installer zip |
 | [`docs/`](docs/) | [Releasing](docs/RELEASING.md), [test checklist (NL)](docs/TESTING_NL.md) |
 | [`tools/`](tools/) | `build_release.py` — builds the Installer zip, source zip and SHA256SUMS |
 
-Tests: `cd mod && luajit tests/test_three_player.lua && luajit tests/test_steam_p2p.lua && luajit tests/test_updater.lua && luajit tests/test_koth.lua && luajit tests/test_koth_client.lua && luajit tests/test_jokers_3p.lua`,
+Tests: `cd mod && luajit tests/test_three_player.lua && luajit tests/test_steam_p2p.lua && luajit tests/test_updater.lua && luajit tests/test_koth.lua && luajit tests/test_koth_client.lua && luajit tests/test_jokers_3p.lua && luajit tests/test_teams.lua && luajit tests/test_multi_client.lua`,
 `cd server && npm ci && npm test && npm run test:lua`.
 
 ## Credits
 
-- **3P fork:** Trust Ben Dover — like it? **[Support us on Ko-fi](https://ko-fi.com/trustbendover)**
+- **Balatro High Stakes fork:** Trust Ben Dover — like it? **[Support us on Ko-fi](https://ko-fi.com/trustbendover)**
 - **Balatro Multiplayer** mod: Virtualized and the Balatro Multiplayer contributors —
   <https://github.com/Balatro-Multiplayer/BalatroMultiplayer> (GPL-3.0)
 - **BalatroMultiplayerAPI-Server**: the Balatro Multiplayer team —

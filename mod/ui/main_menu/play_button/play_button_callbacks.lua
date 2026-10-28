@@ -124,6 +124,13 @@ function G.FUNCS.start_lobby(e)
 
 	MP.LOBBY.config.modifier_layers = MP.modifiers_serialize()
 
+	if MP.MODES and MP.MODES.default_lives(MP.LOBBY.config.gamemode) then
+		MP.LOBBY.config.starting_lives = MP.MODES.default_lives(MP.LOBBY.config.gamemode)
+	end
+	if MP.LOBBY.config.gamemode == "gamemode_mp_teams" then
+		MP.LOBBY.config.teams_size = MP.LOBBY.config.teams_size or 2
+		MP.LOBBY.config.teams_order = nil
+	end
 	if MP.LOBBY.config.gamemode == "gamemode_mp_koth" then
 		MP.LOBBY.config.starting_lives = 3 -- King of the Hill: 3 lives (crown shield + bounty lives)
 	end

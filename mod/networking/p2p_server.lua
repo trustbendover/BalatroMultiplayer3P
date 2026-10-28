@@ -786,6 +786,7 @@ function H.lobbyOptions(S, c, a)
 	local L = c.lobby
 	if not L then return end
 	local opts = {}
+	local teams_before = tostring(L.options.teams_order or "") .. "|" .. tostring(L.options.teams_size or "")
 	for k, v in pairs(a) do
 		if k ~= "action" then
 			if v == "true" then v = true elseif v == "false" then v = false end
@@ -794,7 +795,9 @@ function H.lobbyOptions(S, c, a)
 		end
 	end
 	for i = 2, #L.players do sendA(L.players[i], copy(copy({ gamemode = L.gameMode }, opts), { action = "lobbyOptions" })) end
-	if L.gameMode == "teams" and not L.isInGame and (opts.teams_order ~= nil or opts.teams_size ~= nil) then S:lobby_info(L) end
+	-- re-broadcast the team preview only on a real change (the host re-sends all options after each lobbyInfo)
+	local teams_after = tostring(L.options.teams_order or "") .. "|" .. tostring(L.options.teams_size or "")
+	if L.gameMode == "teams" and not L.isInGame and teams_after ~= teams_before then S:lobby_info(L) end
 end
 function H.failRound(S, c)
 	local L = c.lobby

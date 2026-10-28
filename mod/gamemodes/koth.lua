@@ -1,4 +1,4 @@
--- King of the Hill / Bounty (3-player fork). Blinds and bans as Attrition; the crown/bounty
+-- King of the Hill / Bounty (Balatro High Stakes, 2-8 players). Blinds and bans as Attrition; the crown/bounty
 -- rules run on the server side (networking/koth_rules.lua and server/src/koth.ts),
 -- the client side (HUD, messages, bounty payout) is lib/koth.lua.
 MP.Gamemode({
@@ -195,7 +195,7 @@ MP.Gamemode({
 										{
 											n = G.UIT.T,
 											config = {
-												text = "4",
+												text = "3",
 												scale = 1.5,
 												colour = G.C.UI.TEXT_LIGHT,
 											},

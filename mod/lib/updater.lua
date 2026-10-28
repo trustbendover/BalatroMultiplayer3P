@@ -1,10 +1,10 @@
--- Balatro Multiplayer 3P fork: non-blocking update check + "Update available" button.
+-- Balatro High Stakes (fork of Balatro Multiplayer): non-blocking update check + "Update available" button.
 -- GPL-3.0. Never blocks the game, never crashes: every step is pcall'd and silent when offline.
 -- Disable with .env: update_check=false
 MP.UPDATER = MP.UPDATER or {}
 local U = MP.UPDATER
 
-U.REPO = "trustbendover/BalatroMultiplayer3P"
+U.REPO = (MP and MP.BRAND and MP.BRAND.repo) or "trustbendover/BalatroMultiplayer3P"
 U.API_URL = "https://api.github.com/repos/" .. U.REPO .. "/releases/latest"
 U.RAW_URL = "https://raw.githubusercontent.com/" .. U.REPO .. "/main/version.json"
 U.RELEASES_URL = "https://github.com/" .. U.REPO .. "/releases/latest"
@@ -144,7 +144,7 @@ end
 
 function U.button_label()
 	if U.state == "available" then return "Update available: v" .. tostring(U.latest) end
-	if U.state == "no_https" then return "Check for 3P updates" end
+	if U.state == "no_https" then return "Check for updates" end
 	if U.state == "started" then return "Updater started: close & restart Balatro" end
 	return nil
 end

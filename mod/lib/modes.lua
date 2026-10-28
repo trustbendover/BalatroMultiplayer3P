@@ -1,0 +1,65 @@
+-- Balatro High Stakes: player limits per gamemode (client side; the servers enforce the same
+-- limits in networking/p2p_server.lua Core.start_error and server/src/Lobby.ts startError).
+-- GPL-3.0, based on Balatro Multiplayer.
+MP.MODES = MP.MODES or {}
+local M = MP.MODES
+
+M.MIN_PLAYERS = 2
+M.MAX_PLAYERS = 8
+-- min/max players and default lives per mode key (gamemode_mp_<key>)
+M.LIMITS = {
+	duel = { min = 2, max = 2, lives = 4 },
+	attrition = { min = 2, max = 8 },
+	showdown = { min = 2, max = 8 },
+	koth = { min = 2, max = 8, lives = 3 },
+	teams = { min = 4, max = 8, lives = 4 },
+	survival = { min = 2, max = 8 },
+}
+
+M.TEAMS_RULES = M.TEAMS_RULES or (MP.load_mp_file and MP.load_mp_file("networking/teams_rules.lua")) or nil
+
+local function L(key, fallback, vars)
+	local ok, s = pcall(localize, vars and { type = "variable", key = key, vars = vars } or key)
+	if ok and type(s) == "string" and s ~= "ERROR" and s ~= key then return s end
+	if vars then
+		for i, v in ipairs(vars) do fallback = fallback:gsub("#" .. i .. "#", tostring(v)) end
+	end
+	return fallback
+end
+M.L = L
+
+--- "gamemode_mp_teams" -> "teams" (also accepts the bare key).
+function M.key(gamemode)
+	gamemode = tostring(gamemode or (MP.LOBBY and MP.LOBBY.config and MP.LOBBY.config.gamemode) or "")
+	if gamemode:sub(1, 12) == "gamemode_mp_" then return gamemode:sub(13) end
+	return gamemode
+end
+
+function M.limits(gamemode)
+	return M.LIMITS[M.key(gamemode)] or { min = M.MIN_PLAYERS, max = M.MAX_PLAYERS }
+end
+
+function M.default_lives(gamemode)
+	return M.limits(gamemode).lives
+end
+
+function M.is_teams(gamemode) return M.key(gamemode) == "teams" end
+function M.is_duel(gamemode) return M.key(gamemode) == "duel" end
+
+--- Why a lobby of n players cannot start in this mode (localized), or nil when it can.
+function M.start_problem(n, gamemode, options)
+	n = tonumber(n) or 0
+	local key = M.key(gamemode)
+	local lim = M.limits(key)
+	options = options or (MP.LOBBY and MP.LOBBY.config) or {}
+	if key == "duel" and n ~= 2 then return L("k_mode_need_exactly_2", "1v1 Duel needs exactly 2 players") end
+	if n < M.MIN_PLAYERS then return L("k_mode_need_min", "Need at least #1# players", { M.MIN_PLAYERS }) end
+	if n > lim.max then return L("k_mode_too_many", "Too many players for this mode (max #1#)", { lim.max }) end
+	if key == "teams" then
+		if n < lim.min or n % 2 ~= 0 then return L("k_mode_teams_split", "Teams needs 4, 6 or 8 players") end
+		if M.TEAMS_RULES and not M.TEAMS_RULES.plan(n, options) then return L("k_mode_teams_split", "Teams needs 4, 6 or 8 players") end
+	end
+	return nil
+end
+
+return M

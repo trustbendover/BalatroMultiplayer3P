@@ -11,8 +11,10 @@ function G.UIDEF.gamemode_selection_options()
 			name = "k_battle",
 			buttons = {
 				{ button_id = "attrition_gamemode_button", button_localize_key = "k_attrition" },
+				{ button_id = "duel_gamemode_button", button_localize_key = "k_duel" },
 				{ button_id = "showdown_gamemode_button", button_localize_key = "k_showdown" },
 				{ button_id = "koth_gamemode_button", button_localize_key = "k_koth" },
+				{ button_id = "teams_gamemode_button", button_localize_key = "k_teams" },
 			},
 		},
 		{

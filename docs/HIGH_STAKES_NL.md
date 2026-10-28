@@ -1,0 +1,73 @@
+# Balatro High Stakes 0.6.7 – overzicht (2 tot 8 spelers)
+
+*Status: in ontwikkeling (branch `feature/2v2`), nog niet uitgebracht, geen tag. Onofficiële fork van
+Balatro Multiplayer (GPL-3.0, credits aan Virtualized en het Balatro Multiplayer-team), door Trust Ben Dover.
+Voorheen "Balatro Multiplayer 3P".*
+
+## Nieuwe naam
+- Overal waar spelers het zien: **Balatro High Stakes** (mod-naam in Steamodded, installer, README,
+  credits, updater-teksten). Alle namen op één plek in de code: `MP.BRAND` in `mod/core.lua`.
+- **Bewust niet veranderd (veilig voor bestaande installaties):**
+  - Mod-id `Multiplayer` (prefix `mp`): instellingen, saves en `SMODS.Mods["Multiplayer"]` blijven werken.
+  - Installatiemap `%APPDATA%\Balatro\Mods\BalatroMultiplayer3P`, de `.env` blijft staan.
+  - GitHub-repo `trustbendover/BalatroMultiplayer3P` en de zip-namen `BalatroMultiplayer3P-v…-Installer.zip`:
+    de updater van 0.6.6 zoekt precies die naam, dus anders vinden vrienden de update niet.
+  - Versie blijft `0.6.7~3P` (de updater vergelijkt alleen de cijfers; het achtervoegsel is cosmetisch).
+- **Plan voor de repo later hernoemen:** GitHub stuurt oude URL's door (ook de API die de updater
+  gebruikt). Volgorde: (1) 0.6.7 uitbrengen zoals nu; (2) repo hernoemen naar bv. `BalatroHighStakes`;
+  (3) in 0.6.8 `MP.BRAND.repo`, `update.ps1` en `build_release.py` op de nieuwe naam zetten, maar de
+  zip nog onder **beide** namen uploaden (of de oude naam houden) zodat 0.6.6/0.6.7-installaties blijven
+  updaten; (4) de installatiemap pas hernoemen met een migratiestap in de installer (map verplaatsen,
+  `.env` meenemen). Maak nooit een nieuwe repo met de oude naam: dan stopt de doorverwijzing.
+
+## Spelersaantallen
+| Modus | Spelers | Standaard levens | Bijzonderheden |
+| --- | --- | --- | --- |
+| **1v1 Duel** | precies 2 | 4 (instelbaar) | Klassiek duel zoals Attrition in de originele mod. Een 3e speler wordt geweigerd. |
+| Attrition | 2-8 | 4 | Laagste score verliest een leven; vanaf 6 spelers de laagste twee. |
+| Showdown | 2-8 | 4 | Zelfde verliesregel, PvP pas na de eerste antes. |
+| King of the Hill | 2-8 | 3 | Doelreeks 5 / 4 / 3 (2 / 3-4 / 5-8 spelers), zie `KING_OF_THE_HILL_NL.md`. |
+| **Teams** | 4, 6, 8 | 4 (gedeeld) | 2v2, 3v3, 4v4, 2v2v2, 2v2v2v2, zie `TEAMS_NL.md`. |
+| Survival | 2-8 | 1 | Ongewijzigd. |
+
+- **Verliesregel vrij-voor-allen:** k = max(1, floor(spelers / 3)) verliezers per PvP: 2-5 spelers één,
+  6-8 spelers twee. Gelijke scores op de grens worden gespaard (dus soms minder verliezers).
+- **Late join** (tot 8 spelers): in alle modi behalve 1v1 Duel (vol bij 2) en Teams.
+- **Rejoin** werkt in alle modi (plek blijft vast tot het einde).
+- De lobby laat zien waarom je niet kunt starten ("1v1 Duel heeft precies 2 spelers nodig",
+  "Teams heeft 4, 6 of 8 spelers nodig", "Te veel spelers voor deze modus (max N)").
+
+## Steam P2P met 8 spelers
+- De Steam-lobby wordt nu gemaakt voor **8 leden** (was 3). Steam staat tot 250 leden per lobby toe.
+- Topologie blijft een **ster**: elke gast praat alleen met de host; de host draait de server-logica
+  (`p2p_server.lua`) en stuurt door (host-authoritative relay). Geen mesh nodig: het verkeer groeit
+  lineair met het aantal spelers en de berichten zijn klein (scores, levens, jokers bij Game Over).
+- Gevolg: als de host wegvalt, stopt de match (zoals voorheen). De host moet Balatro open houden.
+
+## Interface voor tot 7 tegenstanders
+- Lobby-lijst en de in-game lobby-info tonen alle 8 stoelen (kleiner lettertype vanaf 5 spelers,
+  teamletter in Teams).
+- PvP-HUD: met 1-3 tegenstanders zoals voorheen; met 4 of meer de top 3 op score, dan `+N`
+  (nog meer levende spelers) en `N out` (uitgeschakeld). In Teams eerst de teamstanden.
+- Game Over: de "nemesis" is bij verlies de sterkste rivaal die nog meedoet, bij winst de laatst
+  uitgeschakelde; nooit een teamgenoot.
+
+## Jokers
+Alle zeven herwerkt voor 2-8 spelers (schalen met het aantal rivalen, met maximum); in een 1v1
+verschijnen Gier, Lachende Derde en Middenmoot niet. Zie `JOKERS_NL.md`.
+
+## Tests
+- Lua: `cd mod && luajit tests/test_three_player.lua && luajit tests/test_steam_p2p.lua && luajit tests/test_updater.lua
+  && luajit tests/test_koth.lua && luajit tests/test_koth_client.lua && luajit tests/test_jokers_3p.lua
+  && luajit tests/test_teams.lua && luajit tests/test_multi_client.lua`
+- Server (beide serverpaden, TS en de Lua-core via een brug): `cd server && npm ci && npm test && npm run test:lua`.
+  `test/multiPlayer.test.mjs` speelt complete potjes met 2, 3, 4, 6 en 8 spelers (Attrition), Showdown met 2,
+  1v1 Duel, Teams 2v2 / 3v3 / 2v2v2 / 4v4 / 2v2v2v2 (incl. disconnect en rejoin), KotH-doelreeks voor
+  2/4/5/8 spelers en weigert een 9e speler.
+- `test_steam_p2p.lua` speelt een 4v4 met 8 spelers via de Steam-P2P-router en weigert een 9e.
+- Nog niet getest: echt spelen met 8 mensen via Steam (alleen gesimuleerd).
+
+## Risico's
+- Lay-out met 8 spelers (lobby-lijst, lobby-info) is niet in het echte spel bekeken; kan krap zijn.
+- 0.6.6 en 0.6.7 door elkaar geeft een versiewaarschuwing en ander gedrag; iedereen moet updaten.
+- Teams/Duel zijn nieuwe servermodi: een oude TS-server (0.6.6) kent ze niet.

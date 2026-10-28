@@ -47,20 +47,41 @@
 - **Ouija** — Destroys 3 cards instead of converting all cards to a single suit and reducing hand size.
 - **Judgment** — Now draws from its own queue (vanilla behavior) on Orange Stake and above. Still uses the shop queue on lower stakes.
 
-## 0.6.7~3P (in development - not released yet)
-- New gamemode **King of the Hill / Bounty**, designed for 3 players (lobby: Battle -> King of the Hill).
-  Top PvP score becomes King and carries a bounty that grows each PvP he stays on top; beating the
-  King claims the bounty ($4 x bounty, +1 life at bounty 3+) and the crown; crown shield (a King with
-  the lowest score loses the crown, not a life); holding the hill for 4 PvPs in a row wins.
-  Rules in networking/koth_rules.lua + server/src/koth.ts (shared test vectors), client in lib/koth.lua,
-  gamemode in gamemodes/koth.lua. Design: docs/KING_OF_THE_HILL_NL.md.
-- **Special 3-player jokers** (7 new Multiplayer jokers, only in the shop in a multiplayer lobby with
-  2 opponents and "Multiplayer jokers" on; they read only synced opponent lives / eliminations /
-  KotH crown, so they work on Steam P2P and the TS server and never affect opponents):
-  Third Wheel (Common), Vulture (Common), Laughing Third (Uncommon), Kingslayer (Uncommon),
-  Bounty Hunter (Uncommon), Middle of the Pack (Uncommon), Triumvirate (Rare).
-  Code: lib/jokers_3p.lua + objects/jokers/threep/, tests/test_jokers_3p.lua. Art: original Balatro-style
-  pixel art (tools/joker_art_3p/). Design: docs/JOKERS_3P_NL.md.
+## 0.6.7~3P (in development - not released yet) - "Balatro High Stakes"
+- **Renamed** to **Balatro High Stakes** (formerly "Balatro Multiplayer 3P"). Display names only: the
+  Steamodded mod id stays `Multiplayer`, the install folder, release zip names and the GitHub repo stay
+  `BalatroMultiplayer3P`, and the version keeps the `~3P` suffix, so 0.6.6 installs still find this
+  update and keep their settings. Names live in one place: `MP.BRAND` in core.lua.
+- **2 to 8 players** (was exactly 3). Both servers (Steam P2P host and TS server) accept 2-8 players;
+  the Steam lobby is created for 8 members. Steam P2P stays a star: every guest talks only to the host,
+  which runs the server core and relays (host-authoritative).
+- **Free-for-all life loss scales**: 2-5 players: the single lowest score loses a life; 6-8 players:
+  the bottom two (k = max(1, floor(players / 3))). Ties at the cut are spared. Late join up to 8 players.
+- New gamemode **1v1 Duel**: exactly 2 players, classic Attrition duel as in the original Balatro
+  Multiplayer, lives configurable (default 4). The server refuses a 3rd player.
+- New gamemode **Teams** (4, 6 or 8 players): 2v2, 3v3, 4v4, 2v2v2, 2v2v2v2. Team score = sum of the
+  teammates' scores, the single lowest team loses one shared team life (tie for lowest: nobody), an away
+  teammate is filled in with the team average, last team standing wins. Nemesis effects only hit rival
+  teams. The host can shuffle the teams and pick the team size in the lobby. No late join in Teams.
+  Rules: networking/teams_rules.lua + server/src/teams.ts (shared vectors: tests/teams_vectors.json).
+- **King of the Hill** for 2-8 players: hold target 5 (2 players) / 4 (3-4) / 3 (5-8), life bounty at
+  bounty 3 (2-4 players) / 2 (5-8), crown shield also when the King is among the bottom two.
+  Rules in networking/koth_rules.lua + server/src/koth.ts (shared test vectors), client in lib/koth.lua.
+  Design: docs/KING_OF_THE_HILL_NL.md.
+- **7 multiplayer jokers**, rebalanced for 2-8 players (they read only synced opponent lives /
+  eliminations / KotH crown / teams, so they work on Steam P2P and the TS server and never affect
+  opponents). Teammates never count as opponents; a rival team counts once. Not offered in a 1v1:
+  Vulture, Laughing Third, Middle of the Pack. Third Wheel: up to +24 Mult by the share of rivals with
+  more lives. Vulture: $16/rivals (min $3) per elimination, +1 hand size (max +2). Laughing Third:
+  X0.5/rivals per rival life lost, max X3. Kingslayer: X(1 + min(1, 2/rivals)) while a rival leads.
+  Bounty Hunter: $8/rivals (min $2) and +6/rivals Mult (min +1, max +24) when the leader falls.
+  Middle of the Pack: X1.5 in the middle ranks (needs 2+ rival groups), else +10 Mult. Triumvirate:
+  X(0.5 + 0.5 per player still in), max X3. Code: lib/jokers_3p.lua + objects/jokers/threep/,
+  tests/test_jokers_3p.lua. Art: original Balatro-style pixel art (tools/joker_art_3p/). Design:
+  docs/JOKERS_NL.md.
+- UI for up to 8 players: lobby list and in-game lobby info show every seat (team letters in Teams),
+  the PvP HUD lists the top 3 rivals plus "+N" / "N out" with 4+ opponents and team totals in Teams,
+  the Game Over nemesis is never a teammate. Lobby shows why a lobby cannot start (wrong player count).
 - Fix (Steam P2P host): lobbyOptions sent to guests now keep the host's full gamemode key, like the TS server.
 
 ## 0.6.6~3P (Trust Ben Dover)

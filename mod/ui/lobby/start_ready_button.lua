@@ -3,6 +3,19 @@ local Disableable_Button = MP.UI.Disableable_Button
 local function get_warnings()
 	local warnings = {}
 
+	-- Player count vs. mode (1v1 Duel: exactly 2, Teams: 4/6/8, others 2-8)
+	local count = MP.LOBBY.player_list and #MP.LOBBY.player_list or 0
+	local problem = count >= 2 and MP.MODES and MP.MODES.start_problem(count)
+	if problem then table.insert(warnings, { problem, SMODS.Gradients.warning_text, 0.35 }) end
+
+	-- Unmodded/cached-file warning for any other seat (up to 8 players)
+	for i = 1, 8 do
+		local seat = MP.LOBBY.seats and MP.LOBBY.seats[i]
+		if i > 2 and seat and seat.username and seat.cached == false then
+			table.insert(warnings, { localize("k_warning_cheating1") .. " (" .. tostring(seat.username) .. ")", SMODS.Gradients.warning_text, 0.3 })
+		end
+	end
+
 	-- Check the other player (guest if we're host, host if we're guest)
 	local other_player = MP.LOBBY.is_host and MP.LOBBY.guest or MP.LOBBY.host
 

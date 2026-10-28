@@ -1,9 +1,11 @@
-Balatro Multiplayer 3P  v0.6.6~3P  (onofficiële fork, door Trust Ben Dover)
-==========================================================================
-3-speler Attrition voor Balatro Multiplayer. Iedereen in het spel heeft deze mod nodig.
+Balatro High Stakes  v0.6.7~3P  (onofficiële fork van Balatro Multiplayer, door Trust Ben Dover)
+==============================================================================================
+Balatro Multiplayer voor 2 tot 8 spelers: 1v1 Duel, Attrition, Showdown, King of the Hill en
+Teams (2v2, 3v3, 4v4, 2v2v2, 2v2v2v2). Iedereen in het spel heeft deze mod nodig.
+(Voorheen "Balatro Multiplayer 3P"; de installatiemap heet nog BalatroMultiplayer3P.)
 Windows + Steam-versie van Balatro.
 
-UPDATEN VANAF EEN OUDERE VERSIE: iedereen (host EN vrienden) moet 0.6.6 installeren. Draai gewoon
+UPDATEN VANAF EEN OUDERE VERSIE: iedereen (host EN vrienden) moet 0.6.7 installeren. Draai gewoon
 Install.bat opnieuw; hij vervangt de oude versie en houdt je instellingen.
 
 INSTALLEREN
@@ -12,11 +14,11 @@ INSTALLEREN
    - Windows SmartScreen ("Windows heeft uw pc beschermd"): "Meer informatie" -> "Toch uitvoeren".
      Het is een gewoon batch/PowerShell-script; je kunt install.ps1 eerst lezen.
 3. De installer zoekt Balatro, installeert Lovely (modloader), Steamodded 1.0.0~BETA-1620a en
-   de 3P-mod, en maakt een backup van alles wat hij vervangt (%APPDATA%\Balatro\MP3P-backup-*).
+   de High Stakes-mod, en maakt een backup van alles wat hij vervangt (%APPDATA%\Balatro\MP3P-backup-*).
 4. Kies hoe je speelt:
    1 = via Steam (STANDAARD, aanbevolen): geen server, geen port forwarding, geen Tailscale.
    2 = via een serveradres (playit.gg / Tailscale / publiek IP + poort, standaard 8788).
-5. Start Balatro gewoon via Steam. In het hoofdmenu staat 0.6.6~3P.
+5. Start Balatro gewoon via Steam. In het hoofdmenu staat 0.6.7~3P.
 
 UPDATES (vanaf 0.6.6)
 - Bij een nieuwe versie staat er in het hoofdmenu (linksboven) een knop "Update available: vX".
@@ -38,11 +40,11 @@ SPELEN IN STEAM-MODUS (keuze 1)
   of kopieer de code en kies "Join From Clipboard" (werkt ook met een Steam-lobby-id), of typ de code.
 - Rejoin: verbinding kwijt of gecrasht? Start Balatro en join opnieuw met dezelfde code en
   dezelfde naam: je krijgt je plek, levens en ante terug (plek blijft vast tot het einde).
-- Late join: een 3e speler kan in een lopend spel komen; start op de laagste ante/levens en
-  zit een blind die al bezig is uit.
+- Late join: een extra speler (tot 8) kan in een lopend spel komen (niet in 1v1 Duel of Teams);
+  start op de laagste ante/levens en zit een blind die al bezig is uit.
 
 SERVERMODUS (keuze 2)
-De host draait de 3P-server (poort 8788) en deelt die via playit.gg, Tailscale of port forwarding.
+De host draait de High Stakes-server (poort 8788) en deelt die via playit.gg, Tailscale of port forwarding.
 Wisselen kan altijd: Install.bat opnieuw, of %APPDATA%\Balatro\Mods\BalatroMultiplayer3P\.env
 aanpassen (regel mode=steam = Steam-modus).
 

@@ -1,9 +1,11 @@
-Balatro Multiplayer 3P  v0.6.6~3P  (unofficial fork, by Trust Ben Dover)
-=======================================================================
-3-player Attrition for Balatro Multiplayer. Everyone in the match needs this mod.
+Balatro High Stakes  v0.6.7~3P  (unofficial fork of Balatro Multiplayer, by Trust Ben Dover)
+=========================================================================================
+Balatro Multiplayer for 2 to 8 players: 1v1 Duel, Attrition, Showdown, King of the Hill and
+Teams (2v2, 3v3, 4v4, 2v2v2, 2v2v2v2). Everyone in the match needs this mod.
+(Formerly "Balatro Multiplayer 3P"; the install folder is still BalatroMultiplayer3P.)
 Windows + Steam version of Balatro.
 
-UPDATING FROM AN OLDER VERSION: everyone (host AND friends) must install 0.6.6. Just run Install.bat again;
+UPDATING FROM AN OLDER VERSION: everyone (host AND friends) must install 0.6.7. Just run Install.bat again;
 it replaces the old version and keeps your settings.
 
 INSTALL
@@ -12,11 +14,11 @@ INSTALL
    - Windows SmartScreen ("Windows protected your PC"): click "More info" -> "Run anyway".
      It's a plain batch/PowerShell script; you can read install.ps1 first.
 3. The installer finds Balatro, installs Lovely (mod loader), Steamodded 1.0.0~BETA-1620a
-   and the 3P mod, and backs up anything it replaces (see %APPDATA%\Balatro\MP3P-backup-*).
+   and the High Stakes mod, and backs up anything it replaces (see %APPDATA%\Balatro\MP3P-backup-*).
 4. Choose how to play:
    1 = via Steam (DEFAULT, recommended): no server, no port forwarding, no Tailscale.
    2 = via a server address (playit.gg / Tailscale / public IP + port, default 8788).
-5. Start Balatro normally from Steam. Version 0.6.6~3P shows in the main menu.
+5. Start Balatro normally from Steam. Version 0.6.7~3P shows in the main menu.
 
 UPDATES (from 0.6.6 on)
 - When a new version is released, the main menu shows an "Update available: vX" button (top left).
@@ -39,11 +41,11 @@ PLAYING IN STEAM MODE (option 1)
   "Join From Clipboard" (also accepts a Steam lobby id / steam://joinlobby link), or type the code.
 - Rejoin: lost connection / crashed? Start Balatro and join again with the same code and the
   same name: you get your seat, lives and ante back (seat is held until the match ends).
-- Late join: a 3rd player can join a running match; they start at the lowest ante/lives
-  and sit out a blind that's already in progress.
+- Late join: another player (up to 8) can join a running match (not in 1v1 Duel or Teams);
+  they start at the lowest ante/lives and sit out a blind that's already in progress.
 
 SERVER MODE (option 2)
-The host runs the 3P server (BalatroMultiplayer3P server, port 8788) and shares it via
+The host runs the High Stakes server (BalatroMultiplayer3P server, port 8788) and shares it via
 playit.gg, Tailscale or port forwarding. Switch modes anytime by re-running Install.bat, or by
 editing %APPDATA%\Balatro\Mods\BalatroMultiplayer3P\.env (mode=steam line = Steam mode).
 

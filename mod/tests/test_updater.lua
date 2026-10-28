@@ -57,7 +57,7 @@ package.loaded["SMODS.https"] = { asyncRequest = function() error("boom") end }
 U.check(); ok(U.state == "offline", "throwing backend handled")
 -- no backend
 U.state = "idle"; package.loaded["SMODS.https"] = nil; package.preload["SMODS.https"] = nil
-U.check(); ok(U.state == "no_https" and U.button_label() == "Check for 3P updates", "no https -> PowerShell updater button")
+U.check(); ok(U.state == "no_https" and U.button_label() == "Check for updates", "no https -> PowerShell updater button")
 -- opt-out
 U.state = "idle"; MP.ENV.update_check = "false"; U.check(); ok(U.state == "none", ".env update_check=false")
 -- start updater when script missing -> opens releases page, never crashes
