@@ -190,8 +190,10 @@ function J.diff(prev, cur)
 	if not prev then return ev end
 	for id, l in pairs(cur.lives) do
 		local before = prev.lives[id]
-		if before and l < before then ev.life_losses = ev.life_losses + (before - l) end
-		if cur.elim[id] and not prev.elim[id] and before ~= nil then ev.eliminations = ev.eliminations + 1 end
+		local newly_out = cur.elim[id] and not prev.elim[id] and before ~= nil
+		-- a rival who leaves / times out with lives left counts as one lost life, not all of them
+		if before and l < before then ev.life_losses = ev.life_losses + (newly_out and 1 or (before - l)) end
+		if newly_out then ev.eliminations = ev.eliminations + 1 end
 	end
 	if prev.king then
 		-- King of the Hill: the opponent King lost the crown

@@ -48,6 +48,16 @@
 - **Judgment** — Now draws from its own queue (vanilla behavior) on Orange Stake and above. Still uses the shop queue on lower stakes.
 
 ## 0.6.7~3P (in development - not released yet) - "Balatro High Stakes"
+
+- **Deathmatch** (new mode, 2-8 players): Attrition life rules (4 lives), but guaranteed all-vs-all to the last one standing.
+  Every Nemesis blind is all living players at once; lowest score loses a life (6-8 alive: bottom two). Leaving = eliminated;
+  a disconnect holds the seat for 60 s (option `deathmatch_grace`, no lobby button yet), then eliminates. No late join. Simultaneous final
+  deaths: highest score wins. Eliminated players see live standings and can return to the lobby while the match goes on.
+  Steam P2P host and TS server. Docs: `docs/DEATHMATCH_NL.md`.
+- Fix (all modes): an eliminated player pressing "Return to Lobby" no longer stops the match for everyone.
+- Fix (all non-team modes): when all remaining players die in the same PvP, the highest score wins (was: no winner).
+- Fix: `startGame` while a match is running is refused.
+- Laughing Third: a rival who leaves / times out with lives left counts as one lost life.
 - **Renamed** to **Balatro High Stakes** (formerly "Balatro Multiplayer 3P"). Display names only: the
   Steamodded mod id stays `Multiplayer`, the install folder, release zip names and the GitHub repo stay
   `BalatroMultiplayer3P`, and the version keeps the `~3P` suffix, so 0.6.6 installs still find this

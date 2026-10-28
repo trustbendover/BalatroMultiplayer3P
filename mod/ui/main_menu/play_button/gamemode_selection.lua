@@ -15,6 +15,7 @@ function G.UIDEF.gamemode_selection_options()
 				{ button_id = "showdown_gamemode_button", button_localize_key = "k_showdown" },
 				{ button_id = "koth_gamemode_button", button_localize_key = "k_koth" },
 				{ button_id = "teams_gamemode_button", button_localize_key = "k_teams" },
+				{ button_id = "deathmatch_gamemode_button", button_localize_key = "k_deathmatch" },
 			},
 		},
 		{

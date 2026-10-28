@@ -64,8 +64,14 @@ export const sendToOpponents = (client: Client, action: ActionServerToClient & {
 export const isTeammate = (a: Client, b: Client): boolean =>
 	a.id !== b.id && a.team !== null && a.team === b.team && a.lobby?.gameMode === "teams"
 
-/** How long to keep a disconnected player's slot reserved (ms) */
-const RECONNECT_GRACE_PERIOD = 60000;
+/** Deathmatch: how long a disconnected player may rejoin before counting as eliminated (ms) */
+export const DEATHMATCH_GRACE_MS = 60000;
+export const deathmatchGraceMs = (options: { [key: string]: unknown } | undefined): number => {
+	const g = Number(options?.deathmatch_grace);
+	return Number.isFinite(g) && g >= 1 && g <= 300 ? g * 1000 : DEATHMATCH_GRACE_MS;
+};
+/** Modes without late join (teams are fixed; Deathmatch guarantees everyone fights every PvP) */
+export const noLateJoin = (mode: string) => mode === "teams" || mode === "deathmatch";
 
 /** How long an in-game lobby survives with nobody connected (ms) */
 const EMPTY_LOBBY_TTL = 10 * 60 * 1000;
@@ -111,6 +117,10 @@ class Lobby {
 	teamSize = 2;
 	/** Players at game start (KotH scaling) */
 	startPlayers = 0;
+	/** Deathmatch: elimination order (ids) and the winner, for the standings */
+	elimOrder: string[] = [];
+	winnerId: string | null = null;
+	graceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	/** increments for every started PvP blind */
 	blindSeq = 0;
 	/** deletes the lobby if nobody reconnects while it's empty mid-game */
@@ -152,6 +162,7 @@ class Lobby {
 		const wasMember = this.players.some((p) => p.id === client.id);
 		this.players = this.players.filter((p) => p.id !== client.id);
 		client.setLobby(null);
+		const wasEliminated = client.eliminated;
 		client.eliminated = false;
 		if (!wasMember) return;
 		this.handyAllowMPExtension.delete(client.id);
@@ -164,7 +175,13 @@ class Lobby {
 		if (this.isInGame) {
 			// A voluntary leaver mid-game is out; the game continues for the others.
 			this.broadcastAction({ action: "playerLeft", playerId: client.id, username: client.username });
+			if (this.gameMode === "deathmatch" && !wasEliminated) {
+				// a leaver counts as eliminated
+				this.elimOrder.push(client.id);
+				this.broadcastAction({ action: "playerEliminated", playerId: client.id, username: client.username, reason: "left" });
+			}
 			client.team = null;
+			this.deathmatchBroadcast();
 			this.teamsBroadcast();
 			this.checkGameOver();
 			if (this.isInGame) {
@@ -179,6 +196,8 @@ class Lobby {
 	};
 
 	destroy = () => {
+		for (const t of this.graceTimers.values()) clearTimeout(t);
+		this.graceTimers.clear();
 		if (this.emptyTimer) clearTimeout(this.emptyTimer);
 		this.emptyTimer = null;
 		this.disconnectedSlots = [];
@@ -197,8 +216,13 @@ class Lobby {
 		}
 
 		console.log(`Player ${client.id} (${client.username}) disconnected from lobby ${this.code}; holding seat until game ends`);
-		this.disconnectedSlots.push({ reconnectToken: client.reconnectToken, index, old: client, since: Date.now() });
+		const slot = { reconnectToken: client.reconnectToken, index, old: client, since: Date.now() };
+		this.disconnectedSlots.push(slot);
 		this.players.splice(index, 1);
+		if (this.gameMode === "deathmatch" && !client.eliminated) {
+			const t = setTimeout(() => this.deathmatchExpire(slot), deathmatchGraceMs(this.options));
+			this.graceTimers.set(client.id, t);
+		}
 		client.setLobby(null);
 
 		for (const p of this.players) {
@@ -221,6 +245,8 @@ class Lobby {
 	/** Seat a reconnecting client in a held slot, restoring their state. */
 	reclaimSlot = (newClient: Client, slot: DisconnectedSlot) => {
 		this.disconnectedSlots = this.disconnectedSlots.filter((s) => s !== slot);
+		const gt = this.graceTimers.get(slot.old.id);
+		if (gt) { clearTimeout(gt); this.graceTimers.delete(slot.old.id); }
 		if (this.emptyTimer) { clearTimeout(this.emptyTimer); this.emptyTimer = null; }
 		const o = slot.old;
 		const fields = [
@@ -312,7 +338,11 @@ class Lobby {
 				if (s2) { this.reclaimSlot(client, s2); return; }
 			}
 			// 2) Late join if there's a free seat (not in Teams: teams are fixed at the start)
-			if (this.gameMode !== "teams" && this.players.length + this.disconnectedSlots.length < this.maxPlayers) {
+			if (this.gameMode === "deathmatch") {
+				client.sendAction({ action: "error", message: "Deathmatch in progress: no late join." });
+				return;
+			}
+			if (!noLateJoin(this.gameMode) && this.players.length + this.disconnectedSlots.length < this.maxPlayers) {
 				this.lateJoin(client);
 				return;
 			}
@@ -486,6 +516,10 @@ class Lobby {
 			p.team = null;
 		}
 		this.teamLives = null;
+		this.elimOrder = [];
+		this.winnerId = null;
+		for (const t of this.graceTimers.values()) clearTimeout(t);
+		this.graceTimers.clear();
 		this.tcgBets.clear();
 		this.firstReadyAt = null;
 		this.blindActive = false;
@@ -642,15 +676,35 @@ class Lobby {
 	/** Mark players with 0 lives eliminated; end the game if <=1 remains. */
 	checkGameOver = (): boolean => {
 		if (!this.isInGame) return true;
-		for (const p of this.players) {
-			if (!p.eliminated && p.lives <= 0) {
-				p.eliminated = true;
-				p.sendAction({ action: "loseGame" });
-				for (const o of this.players) {
-					if (o.id !== p.id) o.sendAction({ action: "playerEliminated", playerId: p.id, username: p.username });
-				}
-			}
+		// Deathmatch: a player at 0 lives during a PvP blind dies when that PvP resolves, so players
+		// who die in the same PvP die together (simultaneous final deaths -> highest score wins).
+		if (this.gameMode === "deathmatch" && this.blindActive) return false;
+		const dying = this.players.filter((p) => !p.eliminated && p.lives <= 0);
+		const survivors = this.players.filter((p) => !p.eliminated && p.lives > 0).length + this.awayAlive().length;
+		const spared = new Set<Client>();
+		if (survivors === 0 && dying.length > 0 && !this.teamsActive()) {
+			// nobody left standing: the highest score among those dying now wins (ties: all of them)
+			let best = dying[0].score;
+			for (const p of dying) if (p.score.greaterThan(best)) best = p.score;
+			for (const p of dying) if (!best.greaterThan(p.score) && !p.score.greaterThan(best)) spared.add(p);
 		}
+		for (const p of dying) {
+			p.eliminated = true;
+			if (!spared.has(p)) p.sendAction({ action: "loseGame" });
+			for (const o of this.players) {
+				if (o.id !== p.id) o.sendAction({ action: "playerEliminated", playerId: p.id, username: p.username });
+			}
+			this.elimOrder.push(p.id);
+		}
+		if (spared.size > 0) {
+			for (const p of spared) { p.sendAction({ action: "winGame", reason: "final_score" }); this.winnerId ??= p.id; }
+			this.isInGame = false;
+			this.blindActive = false;
+			this.disconnectedSlots = [];
+			this.deathmatchBroadcast();
+			return true;
+		}
+		if (dying.length > 0 || this.gameMode === "deathmatch") this.deathmatchBroadcast();
 		const alive = this.alivePlayers();
 		if (this.teamsActive()) {
 			// Teams: the game ends when only one team has anyone left (connected or seat held)
@@ -670,9 +724,46 @@ class Lobby {
 			this.isInGame = false;
 			this.blindActive = false;
 			this.disconnectedSlots = [];
+			this.winnerId = alive[0]?.id ?? null;
+			this.deathmatchBroadcast();
 			return true;
 		}
 		return false;
+	};
+
+	/** Deathmatch standings for everyone in the lobby (also eliminated players who spectate). */
+	deathmatchBroadcast = () => {
+		if (this.gameMode !== "deathmatch") return;
+		const alive = [
+			...this.players.filter((p) => !p.eliminated).map((p) => ({ id: p.id, username: p.username, lives: p.lives })),
+			...this.disconnectedSlots.filter((s) => !s.old.eliminated)
+				.map((s) => ({ id: s.old.id, username: s.old.username, lives: s.old.lives, away: true })),
+		];
+		const n = this.elimOrder.length;
+		const out = this.elimOrder.map((id, i) => ({ id, place: alive.length + (n - i) }));
+		for (const p of this.players) {
+			p.sendAction({ action: "deathmatchUpdate", you: p.id, alive, out, running: this.isInGame,
+				...(!this.isInGame && this.winnerId ? { winnerId: this.winnerId } : {}) });
+		}
+	};
+
+	/** Deathmatch: a held seat whose grace ran out counts as eliminated (the seat stays, so a
+	 *  late reconnect comes back as a spectator). */
+	deathmatchExpire = (slot: DisconnectedSlot) => {
+		this.graceTimers.delete(slot.old.id);
+		const o = slot.old;
+		if (!this.isInGame || o.eliminated || !this.disconnectedSlots.includes(slot)) return;
+		o.eliminated = true;
+		o.lives = 0;
+		this.elimOrder.push(o.id);
+		for (const p of this.players) {
+			p.sendAction({ action: "playerEliminated", playerId: o.id, username: o.username, reason: "disconnected" });
+			p.sendAction(this.enemyInfoFor(o, true));
+		}
+		this.deathmatchBroadcast();
+		if (this.checkGameOver()) return;
+		this.tryStartBlind();
+		this.tryResolvePvP();
 	};
 
 	/** If every alive player is ready for the blind, start it. */

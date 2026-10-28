@@ -10,5 +10,7 @@ Server changes: src/Lobby.ts (player list, max 3, N-player PvP resolution), src/
 0.6.7 (in development): 2-8 players, 1v1 Duel and Teams modes, scaled free-for-all life loss and King of the Hill -
 src/Lobby.ts, src/actionHandlers.ts, src/actions.ts, src/Client.ts, src/GameMode.ts, src/koth.ts,
 src/teams.ts and src/pvpRules.ts (new), test/multiPlayer.test.mjs (new).
+0.6.7 (in development): Deathmatch mode - src/Lobby.ts, src/actionHandlers.ts, src/actions.ts, src/GameMode.ts,
+test/deathmatch.test.mjs (new), test/lua_harness.lua and test/luaBridge.mjs (tick).
 
 Fork (Balatro High Stakes) by Trust Ben Dover. Unofficial; not affiliated with LocalThunk, Playstack, or the Balatro Multiplayer team.

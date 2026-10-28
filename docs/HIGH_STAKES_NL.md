@@ -28,12 +28,15 @@ Voorheen "Balatro Multiplayer 3P".*
 | Showdown | 2-8 | 4 | Zelfde verliesregel, PvP pas na de eerste antes. |
 | King of the Hill | 2-8 | 3 | Doelreeks 5 / 4 / 3 (2 / 3-4 / 5-8 spelers), zie `KING_OF_THE_HILL_NL.md`. |
 | **Teams** | 4, 6, 8 | 4 (gedeeld) | 2v2, 3v3, 4v4, 2v2v2, 2v2v2v2, zie `TEAMS_NL.md`. |
+| **Deathmatch** | 2-8 | 4 | Iedereen tegelijk, tot de laatste; weggaan = uit, 60 s grace bij wegvallen, geen late join. Zie `DEATHMATCH_NL.md`. |
 | Survival | 2-8 | 1 | Ongewijzigd. |
 
 - **Verliesregel vrij-voor-allen:** k = max(1, floor(spelers / 3)) verliezers per PvP: 2-5 spelers één,
   6-8 spelers twee. Gelijke scores op de grens worden gespaard (dus soms minder verliezers).
-- **Late join** (tot 8 spelers): in alle modi behalve 1v1 Duel (vol bij 2) en Teams.
-- **Rejoin** werkt in alle modi (plek blijft vast tot het einde).
+- **Late join** (tot 8 spelers): in alle modi behalve 1v1 Duel (vol bij 2), Teams en Deathmatch.
+- **Rejoin** werkt in alle modi (plek blijft vast tot het einde; in Deathmatch 60 seconden).
+- **Iedereen tegelijk op 0 levens** (niet in Teams): de hoogste score van die PvP wint (was: geen winnaar).
+- **Uitgeschakeld en "Terug naar lobby"**: alleen jij gaat terug, de match loopt door (was: stopte voor iedereen).
 - De lobby laat zien waarom je niet kunt starten ("1v1 Duel heeft precies 2 spelers nodig",
   "Teams heeft 4, 6 of 8 spelers nodig", "Te veel spelers voor deze modus (max N)").
 

@@ -13,6 +13,7 @@ M.LIMITS = {
 	showdown = { min = 2, max = 8 },
 	koth = { min = 2, max = 8, lives = 3 },
 	teams = { min = 4, max = 8, lives = 4 },
+	deathmatch = { min = 2, max = 8, lives = 4 },
 	survival = { min = 2, max = 8 },
 }
 

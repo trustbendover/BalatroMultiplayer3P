@@ -21,7 +21,16 @@ function Core.start_error(mode, n, options)
 	return nil
 end
 Core.SERVER_VERSION = "0.6.7-MULTIPLAYER3P"
-Core.STARTING_LIVES = { attrition = 4, showdown = 2, survival = 1, koth = 3, teams = 4, duel = 4 }
+Core.STARTING_LIVES = { attrition = 4, showdown = 2, survival = 1, koth = 3, teams = 4, duel = 4, deathmatch = 4 }
+-- Deathmatch: seconds a disconnected player may rejoin before counting as eliminated
+Core.DEATHMATCH_GRACE = 60
+function Core.deathmatch_grace(options)
+	local g = tonumber((options or {}).deathmatch_grace)
+	if g and g >= 1 and g <= 300 then return g end
+	return Core.DEATHMATCH_GRACE
+end
+--- Modes without late join (teams are fixed; Deathmatch guarantees everyone fights every PvP)
+function Core.no_late_join(mode) return mode == "teams" or mode == "deathmatch" end
 -- free-for-all life-loss rule for 2-8 players (networking/pvp_rules.lua), injected by the loader / tests
 Core.PVP = Core.PVP or nil
 -- Teams rules module (networking/teams_rules.lua), injected by the loader / tests
@@ -247,6 +256,7 @@ function Server:reset_players(L)
 	end
 	L.firstReadyAt, L.blindActive, L.slots = nil, false, {}
 	L.teamLives = nil
+	L.elimOrder, L.winnerId = nil, nil
 end
 
 function Server:destroy(L)
@@ -256,15 +266,37 @@ end
 
 function Server:check_game_over(L)
 	if not L.isInGame then return true end
+	-- Deathmatch: a player at 0 lives during a PvP blind dies when that PvP resolves, so players
+	-- who die in the same PvP die together (simultaneous final deaths -> highest score wins).
+	if L.gameMode == "deathmatch" and L.blindActive then return false end
+	local dying = {}
 	for _, p in ipairs(L.players) do
-		if not p.eliminated and p.lives <= 0 then
-			p.eliminated = true
-			sendA(p, { action = "loseGame" })
-			for _, o in ipairs(L.players) do
-				if o ~= p then sendA(o, { action = "playerEliminated", playerId = p.id, username = p.username }) end
-			end
-		end
+		if not p.eliminated and p.lives <= 0 then dying[#dying + 1] = p end
 	end
+	local survivors = #filter(L.players, function(p) return not p.eliminated and p.lives > 0 end) + #self:away_alive(L)
+	local spared = {}
+	if survivors == 0 and #dying > 0 and not self:teams_active(L) then
+		-- nobody left standing: the highest score among those dying now wins (ties: all of them)
+		local best = nil
+		for _, p in ipairs(dying) do if best == nil or s_gt(p.score, best) then best = p.score end end
+		for _, p in ipairs(dying) do if s_eq(p.score, best) then spared[p] = true end end
+	end
+	for _, p in ipairs(dying) do
+		p.eliminated = true
+		if not spared[p] then sendA(p, { action = "loseGame" }) end
+		for _, o in ipairs(L.players) do
+			if o ~= p then sendA(o, { action = "playerEliminated", playerId = p.id, username = p.username }) end
+		end
+		L.elimOrder = L.elimOrder or {}
+		L.elimOrder[#L.elimOrder + 1] = p.id
+	end
+	if next(spared) then
+		for p in pairs(spared) do sendA(p, { action = "winGame", reason = "final_score" }); L.winnerId = L.winnerId or p.id end
+		L.isInGame, L.blindActive, L.slots = false, false, {}
+		self:deathmatch_broadcast(L)
+		return true
+	end
+	if #dying > 0 or L.gameMode == "deathmatch" then self:deathmatch_broadcast(L) end
 	local alive = self:alive(L)
 	if self:teams_active(L) then
 		-- Teams: the game ends when only one team has anyone left (connected or seat held)
@@ -283,9 +315,46 @@ function Server:check_game_over(L)
 	if #alive + #self:away_alive(L) <= 1 then
 		if alive[1] then sendA(alive[1], { action = "winGame" }) end
 		L.isInGame, L.blindActive, L.slots = false, false, {}
+		L.winnerId = alive[1] and alive[1].id or nil
+		self:deathmatch_broadcast(L)
 		return true
 	end
 	return false
+end
+
+--- Deathmatch standings for everyone in the lobby (also eliminated players who spectate).
+function Server:deathmatch_broadcast(L)
+	if L.gameMode ~= "deathmatch" then return end
+	local alive, out = {}, {}
+	for _, p in ipairs(L.players) do
+		if not p.eliminated then alive[#alive + 1] = { id = p.id, username = p.username, lives = p.lives } end
+	end
+	for _, sl in ipairs(L.slots) do
+		if not sl.old.eliminated then alive[#alive + 1] = { id = sl.old.id, username = sl.old.username, lives = sl.old.lives, away = true } end
+	end
+	for i, id in ipairs(L.elimOrder or {}) do out[#out + 1] = { id = id, place = #alive + (#(L.elimOrder) - i) + 1 } end
+	for _, p in ipairs(L.players) do
+		sendA(p, { action = "deathmatchUpdate", you = p.id, alive = alive, out = out,
+			running = L.isInGame and true or false, winnerId = (not L.isInGame) and L.winnerId or nil })
+	end
+end
+
+--- Deathmatch: a held seat whose grace ran out counts as eliminated (the seat stays, so a late
+--- reconnect comes back as a spectator).
+function Server:deathmatch_expire(L, slot)
+	local o = slot.old
+	if o.eliminated then return end
+	o.eliminated, o.lives = true, 0
+	L.elimOrder = L.elimOrder or {}
+	L.elimOrder[#L.elimOrder + 1] = o.id
+	for _, p in ipairs(L.players) do
+		sendA(p, { action = "playerEliminated", playerId = o.id, username = o.username, reason = "disconnected" })
+		sendA(p, self:enemy_info(o, true))
+	end
+	self:deathmatch_broadcast(L)
+	if self:check_game_over(L) then return end
+	self:try_start_blind(L)
+	self:try_resolve_pvp(L)
 end
 
 function Server:try_start_blind(L)
@@ -512,16 +581,27 @@ function Server:leave(c)
 	if not L then return end
 	local was = find(L.players, function(p) return p == c end)
 	remove_value(L.players, c)
+	local was_eliminated = c.eliminated
 	c.lobby, c.eliminated = nil, false
 	if not was then return end
 	if #L.players == 0 then self:destroy(L); return end
+	c.eliminated = was_eliminated -- (for the checks below; reset after)
 	if L.isInGame then
 		self:broadcast(L, { action = "playerLeft", playerId = c.id, username = c.username })
+		if L.gameMode == "deathmatch" and not c.eliminated then
+			-- a leaver counts as eliminated
+			L.elimOrder = L.elimOrder or {}
+			L.elimOrder[#L.elimOrder + 1] = c.id
+			self:broadcast(L, { action = "playerEliminated", playerId = c.id, username = c.username, reason = "left" })
+		end
 		c.team = nil
 		self:teams_broadcast(L)
+		c.eliminated = false
+		self:deathmatch_broadcast(L)
 		self:check_game_over(L)
 		if L.isInGame then self:try_start_blind(L); self:try_resolve_pvp(L) end
 	else
+		c.eliminated = false
 		self:broadcast(L, { action = "stopGame" })
 		self:reset_players(L)
 	end
@@ -536,7 +616,7 @@ function Server:disconnect(c)
 	if not idx then return end
 	if not L.isInGame then self:leave(c); return end
 	self.log("Player " .. c.username .. " disconnected from " .. L.code .. "; seat held")
-	L.slots[#L.slots + 1] = { reconnectToken = c.reconnectToken, index = idx, old = c }
+	L.slots[#L.slots + 1] = { reconnectToken = c.reconnectToken, index = idx, old = c, since = self.now() }
 	table.remove(L.players, idx)
 	c.lobby = nil
 	for _, p in ipairs(L.players) do
@@ -645,7 +725,10 @@ function Server:join(L, c)
 			if s2 then return self:reclaim(L, c, s2) end
 		end
 		-- late join if there's a free seat (not in Teams: teams are fixed at the start)
-		if L.gameMode ~= "teams" and #L.players + #L.slots < Core.max_players(L.gameMode) then return self:late_join(L, c) end
+		if L.gameMode == "deathmatch" then
+			return sendA(c, { action = "error", message = "Deathmatch in progress: no late join." })
+		end
+		if not Core.no_late_join(L.gameMode) and #L.players + #L.slots < Core.max_players(L.gameMode) then return self:late_join(L, c) end
 		return sendA(c, { action = "error", message = "Lobby is full." })
 	end
 	if #L.players >= Core.max_players(L.gameMode) then
@@ -709,6 +792,7 @@ function H.keepAliveAck() end
 function H.startGame(S, c)
 	local L = c.lobby
 	if not L or L.players[1] ~= c then return end
+	if L.isInGame then return sendA(c, { action = "error", message = "A match is still running." }) end
 	local why = Core.start_error(L.gameMode, #L.players, L.options)
 	if why then return sendA(c, { action = "error", message = why }) end
 	L.startPlayers = #L.players
@@ -779,6 +863,8 @@ function H.failPvPTimer(S, c)
 end
 function H.stopGame(S, c)
 	if not c.lobby then return end
+	-- An eliminated player (or spectator) going back to the lobby must not end the match for the others
+	if c.lobby.isInGame and c.eliminated then return sendA(c, { action = "stopGame" }) end
 	S:broadcast(c.lobby, { action = "stopGame" })
 	S:reset_players(c.lobby)
 end
@@ -863,6 +949,12 @@ end
 function Server:tick()
 	local now = self.now()
 	for code, L in pairs(self.lobbies) do
+		if L.isInGame and L.gameMode == "deathmatch" then
+			local grace = Core.deathmatch_grace(L.options)
+			for _, sl in ipairs(L.slots) do
+				if not sl.old.eliminated and sl.since and now - sl.since >= grace then self:deathmatch_expire(L, sl) end
+			end
+		end
 		if #L.players == 0 and L.emptySince and now - L.emptySince > Core.EMPTY_LOBBY_TTL then
 			self:destroy(L)
 		end

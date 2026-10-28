@@ -3,7 +3,8 @@
 **[Balatro Multiplayer](https://github.com/Balatro-Multiplayer/BalatroMultiplayer) for 2 to 8 players** —
 an unofficial fork by **Trust Ben Dover** (formerly "Balatro Multiplayer 3P"). Modes: **1v1 Duel**,
 **Attrition** and **Showdown** (2-8 players; with 6+ players the bottom two lose a life), **King of the Hill**
-(crown, bounty, crown shield) and **Teams** (2v2, 3v3, 4v4, 2v2v2, 2v2v2v2 with shared team lives), plus seven
+(crown, bounty, crown shield), **Teams** (2v2, 3v3, 4v4, 2v2v2, 2v2v2v2 with shared team lives) and **Deathmatch**
+(everyone against everyone to the last one standing; leaving or a long disconnect eliminates you), plus seven
 special multiplayer jokers. Works over **Steam** (no server, no port forwarding) or with your own server.
 
 > Unofficial fork. Not affiliated with, endorsed by or supported by LocalThunk, Playstack or the
@@ -38,7 +39,7 @@ Turn the check off with `update_check=false` in the mod's `.env`.
   **Invite Steam friend** in the lobby / Steam friends list → *Join game*.
   If an invite doesn't land you in the lobby: Play → *Join Steam invite again*, or *Join From Clipboard*.
 - **Rejoin:** crashed or disconnected? Join again with the same code and name — you keep your seat, lives and ante.
-- **Late join:** another player (up to 8) can join a running match at the lowest ante/lives (not in 1v1 Duel or Teams).
+- **Late join:** another player (up to 8) can join a running match at the lowest ante/lives (not in 1v1 Duel, Teams or Deathmatch).
 
 Server mode (TCP) is still available: see [`server/`](server/) and choose option 2 in the installer.
 

@@ -418,10 +418,14 @@ function MP.UI.create_UIBox_mp_game_end(has_won)
                                                     }),
                                                 },
 											},
+											-- Deathmatch: live standings while you spectate (empty row otherwise)
+											(MP.DEATHMATCH and MP.DEATHMATCH.spectate_row and MP.DEATHMATCH.spectate_row())
+												or { n = G.UIT.R, config = { align = "cm" }, nodes = {} },
 											UIBox_button({
 												id = "from_game_won",
 												button = "mp_return_to_lobby",
-												label = { localize("b_return_lobby") },
+												label = { (MP.DEATHMATCH and MP.DEATHMATCH.is_active() and MP.DEATHMATCH.state()
+													and MP.DEATHMATCH.state().running) and localize("b_dm_return_lobby") or localize("b_return_lobby") },
 												minw = 4,
 												maxw = 4,
 												minh = 0.75,

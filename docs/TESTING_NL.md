@@ -62,7 +62,7 @@ Noteer ook: wie host, wie faalde, Balatro open of dicht bij de invite, en de tij
 
 ## 0.6.7~3P – Balatro High Stakes (2 tot 8 spelers)
 - [ ] Mods-menu en hoofdmenu tonen **Balatro High Stakes**; instellingen en `.env` van 0.6.6 zijn er nog.
-- [ ] Spelmodus-lijst: Attrition, **1v1 Duel**, Showdown, King of the Hill, **Teams**, (Challenge) Survival.
+- [ ] Spelmodus-lijst: Attrition, **1v1 Duel**, Showdown, King of the Hill, **Teams**, **Deathmatch**, (Challenge) Survival.
 - [ ] 1v1 Duel: met 2 spelers starten; een 3e speler krijgt "Lobby is full"; levens instelbaar in de opties.
 - [ ] Attrition met 4+ spelers: lobby-lijst toont iedereen; HUD toont top 3 + `+N`; met 6+ spelers verliezen de laagste twee.
 - [ ] Teams met 4 spelers: `[A]`/`[B]` voor de namen; host-knoppen **Teams husselen** en **Teamgrootte**;
@@ -73,3 +73,8 @@ Noteer ook: wie host, wie faalde, Balatro open of dicht bij de invite, en de tij
 - [ ] King of the Hill met 2 spelers: badge toont `Heuvel x/5`; met 5+ spelers `x/3`.
 - [ ] Jokers: in een 1v1 nooit Gier, Lachende Derde of Middenmoot in de winkel.
 - [ ] Game Over in Teams: de nemesis is een rivaal, nooit je teamgenoot.
+- [ ] Deathmatch met 3+ spelers: iedereen speelt elke Aartsvijand-blind; wie uitgeschakeld is ziet op Game Over de live stand.
+- [ ] Deathmatch: uitgeschakelde speler drukt **Terug naar lobby (match gaat door)** → de anderen spelen gewoon verder.
+- [ ] Deathmatch: iemand drukt Leave lobby → melding "X uitgeschakeld – nog N over", de match gaat door.
+- [ ] Deathmatch: iemand sluit Balatro af en komt binnen 60 s terug → speelt verder; na 60 s → uitgeschakeld.
+- [ ] Deathmatch: een nieuwe speler probeert binnen te komen → "no late join".

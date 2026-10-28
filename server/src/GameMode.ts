@@ -46,6 +46,14 @@ const GameModes: {
 			return { boss: "bl_pvp" };
 		},
 	},
+	deathmatch: {
+		// Deathmatch (2-8 players): every PvP blind is all living players at once, no late join,
+		// a disconnected player is eliminated after the grace period, last one standing wins
+		startingLives: 4,
+		getBlindFromAnte: (ante, options) => {
+			return { boss: "bl_pvp" };
+		},
+	},
 	teams: {
 		// Teams (4-8 players: 2v2, 3v3, 4v4, 2v2v2, 2v2v2v2): attrition blinds, shared team lives (teams.ts)
 		startingLives: 4,

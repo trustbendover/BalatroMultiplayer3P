@@ -37,3 +37,8 @@ ui/lobby/start_ready_button.lua, ui/game/lobby_info.lua, ui/main_menu/play_butto
 localization (en-us, nl, de, fr), tests/test_teams.lua, tests/test_multi_client.lua, tests/teams_vectors.json.
 
 Unofficial fork. Not affiliated with or endorsed by LocalThunk, Playstack, or the Balatro Multiplayer team.
+
+0.6.7 (in development): Deathmatch gamemode - gamemodes/deathmatch.lua, lib/deathmatch.lua (new),
+networking/p2p_server.lua (grace elimination, final-death rule, deathmatchUpdate), lib/modes.lua, lib/jokers_3p.lua,
+ui/game/game_end.lua, ui/main_menu/play_button/gamemode_selection.lua, localization (en-us, nl),
+tests/test_deathmatch_client.lua (new), tests/test_steam_p2p.lua.

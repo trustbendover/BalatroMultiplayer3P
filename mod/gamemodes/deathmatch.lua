@@ -1,0 +1,235 @@
+-- Deathmatch: Attrition life rules, but guaranteed all-vs-all and played to the last one standing.
+-- 2-8 players. Every PvP blind is ALL living players at once; the lowest score loses a life
+-- (6-8 alive: the bottom two). Dying, leaving or a disconnect past the grace period never ends the
+-- match for the others; eliminated players spectate or return to the lobby. No late join.
+-- The rules run on the server (networking/p2p_server.lua / server/src/Lobby.ts); client side is lib/deathmatch.lua.
+MP.Gamemode({
+	key = "deathmatch",
+	get_blinds_by_ante = function(self, ante)
+		if ante >= MP.LOBBY.config.pvp_start_round then
+			if not MP.LOBBY.config.normal_bosses then
+				return nil, nil, "bl_mp_nemesis"
+			else
+				G.GAME.round_resets.pvp_blind_choices.Boss = true
+			end
+		end
+		return nil, nil, nil
+	end,
+	banned_jokers = {
+		"j_mr_bones",
+		"j_luchador",
+		"j_matador",
+		"j_chicot",
+	},
+	banned_consumables = {},
+	banned_vouchers = {
+		"v_hieroglyph",
+		"v_petroglyph",
+		"v_directors_cut",
+		"v_retcon",
+	},
+	banned_enhancements = {},
+	banned_tags = {
+		"tag_boss",
+	},
+	banned_blinds = {
+		"bl_wall",
+		"bl_final_vessel",
+	},
+	reworked_jokers = {},
+	reworked_consumables = {},
+	reworked_vouchers = {},
+	reworked_enhancements = {},
+	reworked_tags = {},
+	reworked_blinds = {},
+	create_info_menu = function()
+		return {
+			{
+				n = G.UIT.R,
+				config = {
+					align = "tm",
+				},
+				nodes = {
+					{
+						n = G.UIT.T,
+						config = {
+							text = MP.UTILS.wrapText(localize("k_deathmatch_description"), 70),
+							scale = 0.6,
+							colour = G.C.UI.TEXT_LIGHT,
+						},
+					},
+				},
+			},
+			{
+				n = G.UIT.R,
+				config = {
+					minw = 0.2,
+					minh = 0.2,
+				},
+			},
+			{
+				n = G.UIT.R,
+				config = {
+					align = "cm",
+					padding = 0.3,
+				},
+				nodes = {
+					{
+						n = G.UIT.C,
+						config = {
+							align = "cm",
+						},
+						nodes = {
+							{
+								n = G.UIT.R,
+								config = {
+									align = "cm",
+								},
+								nodes = {
+									MP.UI.BackgroundGrouping(
+										localize({ type = "variable", key = "k_ante_number", vars = { "1" } }),
+										{
+											{
+												n = G.UIT.O,
+												config = {
+													object = MP.UI.BlindChip.small(),
+												},
+											},
+											{
+												n = G.UIT.C,
+												config = {
+													minw = 0.2,
+													minh = 0.2,
+												},
+											},
+											{
+												n = G.UIT.O,
+												config = {
+													object = MP.UI.BlindChip.big(),
+												},
+											},
+											{
+												n = G.UIT.C,
+												config = {
+													minw = 0.2,
+													minh = 0.2,
+												},
+											},
+											{
+												n = G.UIT.O,
+												config = {
+													object = MP.UI.BlindChip.random(),
+												},
+											},
+										},
+										{ text_scale = 0.6 }
+									),
+								},
+							},
+							{
+								n = G.UIT.R,
+								config = {
+									minw = 0.2,
+									minh = 0.2,
+								},
+							},
+							{
+								n = G.UIT.R,
+								config = {
+									align = "cm",
+								},
+								nodes = {
+									MP.UI.BackgroundGrouping(
+										localize({ type = "variable", key = "k_ante_min", vars = { "2" } }),
+										{
+											{
+												n = G.UIT.O,
+												config = {
+													object = MP.UI.BlindChip.small(),
+												},
+											},
+											{
+												n = G.UIT.C,
+												config = {
+													minw = 0.2,
+													minh = 0.2,
+												},
+											},
+											{
+												n = G.UIT.O,
+												config = {
+													object = MP.UI.BlindChip.big(),
+												},
+											},
+											{
+												n = G.UIT.C,
+												config = {
+													minw = 0.2,
+													minh = 0.2,
+												},
+											},
+											{
+												n = G.UIT.O,
+												config = {
+													object = MP.UI.BlindChip.nemesis(),
+												},
+											},
+										},
+										{ text_scale = 0.6 }
+									),
+								},
+							},
+						},
+					},
+					{
+						n = G.UIT.C,
+						config = {
+							align = "cm",
+						},
+						nodes = {
+							{
+								n = G.UIT.R,
+								config = {
+									align = "cm",
+								},
+								nodes = {
+									MP.UI.BackgroundGrouping(localize("k_lives"), {
+										{
+											n = G.UIT.T,
+											config = {
+												text = "4",
+												scale = 1.5,
+												colour = G.C.UI.TEXT_LIGHT,
+											},
+										},
+									}, { text_scale = 0.6 }),
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				n = G.UIT.R,
+				config = {
+					align = "bm",
+				},
+				nodes = {
+					{
+						n = G.UIT.T,
+						config = {
+							text = localize("k_values_are_modifiable"),
+							scale = 0.4,
+							colour = G.C.UI.TEXT_LIGHT,
+						},
+					},
+				},
+			},
+		}
+	end,
+}):inject()
+
+-- server -> client: standings after every PvP blind, elimination, leave and at the end
+if MP.register_action then
+	MP.register_action("deathmatchUpdate", function(p) MP.DEATHMATCH.on_update(p) end)
+end

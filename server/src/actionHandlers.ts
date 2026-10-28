@@ -144,6 +144,10 @@ const keepAliveAction = (client: Client) => {
 const startGameAction = (client: Client) => {
 	const lobby = client.lobby;
 	if (!lobby || lobby.host?.id !== client.id) return;
+	if (lobby.isInGame) {
+		client.sendAction({ action: "error", message: "A match is still running." });
+		return;
+	}
 	const why = startError(lobby.gameMode, lobby.players.length, lobby.options);
 	if (why) {
 		client.sendAction({ action: "error", message: why });
@@ -244,6 +248,11 @@ const failPvPTimerAction = (client: Client) => {
 
 const stopGameAction = (client: Client) => {
 	if (!client.lobby) {
+		return;
+	}
+	// An eliminated player (or spectator) going back to the lobby must not end the match for the others
+	if (client.lobby.isInGame && client.eliminated) {
+		client.sendAction({ action: "stopGame" });
 		return;
 	}
 	client.lobby.broadcastAction({ action: "stopGame" });

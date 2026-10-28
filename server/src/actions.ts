@@ -11,7 +11,7 @@ export type ActionRejoinFailed = { action: 'rejoinFailed'; message: string }
 export type ActionPlayerJoined = { action: 'playerJoined'; playerId: string; username: string }
 export type ActionResumeRestarted = { action: 'resumeRestarted' }
 export type ActionPlayerLeft = { action: 'playerLeft'; playerId: string; username: string }
-export type ActionPlayerEliminated = { action: 'playerEliminated'; playerId: string; username: string }
+export type ActionPlayerEliminated = { action: 'playerEliminated'; playerId: string; username: string; reason?: 'left' | 'disconnected' }
 export type ActionLobbyInfo = {
 	action: 'lobbyInfo'
 	host: string
@@ -46,6 +46,14 @@ export type ActionTeamsUpdate = {
 	teamSize: number
 	teams: { [team: string]: { members: { id: string; username: string }[]; lives: number } }
 	lastLoser?: 'A' | 'B' | 'C' | 'D' | 'none'
+}
+export type ActionDeathmatchUpdate = {
+	action: 'deathmatchUpdate'
+	you: string
+	alive: { id: string; username: string; lives: number; away?: boolean }[]
+	out: { id: string; place: number }[]
+	running: boolean
+	winnerId?: string
 }
 export type ActionKothUpdate = { action: 'kothUpdate'; you: string } & import('./koth.js').KothEvent
 export type ActionGameInfo = {
@@ -103,6 +111,7 @@ export type ActionModded = { action: 'moddedAction', modId: string, modAction: s
 export type ActionServerToClient =
 	| ActionKothUpdate
 	| ActionTeamsUpdate
+	| ActionDeathmatchUpdate
 	| ActionResumeGame
 	| ActionPlayerJoined
 	| ActionRejoinFailed
@@ -299,4 +308,4 @@ export type ActionHandlers = {
 export type ActionHandlerArgs<T extends HandledActions> = Omit<T, 'action'>
 
 // Other types
-export type GameMode = 'attrition' | 'showdown' | 'survival' | 'koth' | 'teams' | 'duel'
+export type GameMode = 'attrition' | 'showdown' | 'survival' | 'koth' | 'teams' | 'duel' | 'deathmatch'

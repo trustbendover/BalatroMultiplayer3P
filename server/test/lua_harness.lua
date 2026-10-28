@@ -17,6 +17,8 @@ for line in io.lines() do
 			conns[id] = S:connect(function(m) out({ id = id, m = m }) end, function() out({ id = id, close = true }) end)
 		elseif f.t == "msg" and conns[f.id] then
 			S:receive(conns[f.id], f.m)
+		elseif f.t == "tick" then
+			S:tick()
 		elseif f.t == "close" and conns[f.id] then
 			S:disconnect(conns[f.id]); conns[f.id] = nil
 		end

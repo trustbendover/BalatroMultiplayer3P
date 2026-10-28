@@ -18,6 +18,8 @@ lua.stdout.on('data', (d) => {
   }
 })
 const send = (o) => lua.stdin.write(JSON.stringify(o) + '\n')
+// the game calls Server:tick() about once per frame/second; do the same here
+setInterval(() => send({ t: 'tick' }), 250).unref()
 net.createServer((s) => {
   const id = nextId++; socks.set(id, s); send({ t: 'open', id }); let b = ''
   s.on('data', (d) => { b += d; let i; while ((i = b.indexOf('\n')) >= 0) { const l = b.slice(0, i); b = b.slice(i + 1); if (l.trim()) { try { send({ t: 'msg', id, m: JSON.parse(l) }) } catch {} } } })

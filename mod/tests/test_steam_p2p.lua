@@ -206,4 +206,45 @@ for i = 1, 8 do eight[i].send({ action = "readyBlind" }) end pump(10)
 for i = 1, 8 do eight[i].send({ action = "playHand", score = tostring(i <= 4 and 100 or 10), handsLeft = 0 }) end pump(10)
 ok(eight[1].last("winGame") and eight[4].last("winGame") and eight[5].last("loseGame") and eight[8].last("loseGame"),
 	"team B (lower sum) out at 0 lives, all of team A win")
+
+-- ===== Deathmatch over Steam P2P: 5 players, a leave, a disconnect past the grace period,
+--       the eliminated HOST returns to the lobby without ending the match =====
+for _, p in ipairs(all) do if p.r.mode ~= "local" then p.send({ action = "leaveLobby" }) end end
+pump()
+local dm = {}
+for i = 1, 5 do dm[i] = player("dm_" .. i) end
+all = dm
+for _, p in ipairs(dm) do p.send({ action = "connect" }); p.send({ action = "username", username = p.name, modHash = "t" }); p.send({ action = "version", version = "0.6.7~3P" }) end
+dm[1].send({ action = "createLobby", gameMode = "deathmatch" }); pump()
+local codedm = dm[1].last("joinedLobby").code
+dm[1].send({ action = "lobbyOptions", starting_lives = "1", deathmatch_grace = "10" }); pump()
+for i = 2, 5 do dm[i].send({ action = "joinLobby", code = codedm }) end
+pump(10)
+for _, p in ipairs(dm) do p.msgs = {} end
+dm[1].send({ action = "startGame" }); pump(10)
+ok(dm[5].last("playerInfo").lives == 1, "deathmatch started over P2P")
+local function dmround(ps, sc)
+	for _, p in ipairs(dm) do p.msgs = {} end
+	for _, p in ipairs(ps) do p.send({ action = "readyBlind" }) end pump(10)
+	for i, p in ipairs(ps) do p.send({ action = "playHand", score = tostring(sc[i]), handsLeft = 0 }) end pump(10)
+end
+dmround(dm, { 100, 200, 300, 400, 500 })
+ok(dm[1].last("loseGame") and dm[2].last("endPvP"), "all 5 in one PvP: lowest (the host) is out, the match goes on")
+dm[5].send({ action = "leaveLobby" }); pump(10)
+local el = dm[2].last("playerEliminated")
+ok(el and el.username == "dm_5" and el.reason == "left", "a leaver is eliminated (reason left)")
+NET.dead = { dm_4 = true }
+for _ = 1, 40 do T = T + 1; pump(1) end
+NET.dead = nil
+el = dm[2].last("playerEliminated")
+ok(el and el.username == "dm_4" and el.reason == "disconnected", "disconnect past timeout + grace is eliminated")
+for _, p in ipairs(dm) do p.msgs = {} end
+dm[1].send({ action = "stopGame" }); pump(10)
+ok(dm[1].last("stopGame") and not dm[2].last("stopGame") and not dm[3].last("stopGame"), "eliminated host returns to the lobby, the match goes on")
+dm[1].send({ action = "startGame" }); pump(10)
+ok(dm[1].last("error") and dm[1].last("error").message:find("still running"), "no restart while the match runs")
+dmround({ dm[2], dm[3] }, { 50, 60 })
+local fin = dm[1].last("deathmatchUpdate")
+ok(dm[3].last("winGame") and dm[2].last("loseGame") and fin and fin.running == false and fin.winnerId == dm[3].last("deathmatchUpdate").you,
+	"last one standing wins; the spectating host gets the final standings")
 print("PASS: steam p2p router tests")
